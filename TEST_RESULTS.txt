@@ -1,0 +1,10 @@
+v0.2 source integration checks (offline)
+PASS: eight pure-Java combat-policy checks
+PASS: JujutsuCraft v51 contains the relevant procedure classes and original pose files
+PASS: Easy NPC 7.15.0 class-interface fingerprint
+PASS: CustomNPCs GBPort EntityNPCInterface fingerprint
+PASS: all 30 native JJK loot tables overridden
+PASS: all 61 JSON resource files parse
+NOT RUN: Gradle build, Forge runtime, render/mixin testing, actual procedure casts,
+         domain clashes, NPC spawning/cloning, structure generation in game.
+BLOCKED: ForgeGradle dependency downloads (no DNS/network access in build environment).

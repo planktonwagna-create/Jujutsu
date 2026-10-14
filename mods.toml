@@ -1,0 +1,39 @@
+modLoader="javafml"
+loaderVersion="[47,)"
+license="All Rights Reserved (addon source); upstream mods retain their own licenses"
+[[mods]]
+modId="jujutsunpccompat"
+version="0.2.0-dev"
+displayName="JujutsuCraft NPC Compatibility (Development)"
+authors="Independent compatibility project"
+description='''Development build. Connects JujutsuCraft, Easy NPC and CustomNPCs. Not feature-complete.'''
+[[dependencies.jujutsunpccompat]]
+modId="forge"
+mandatory=true
+versionRange="[47.4.26,)"
+ordering="NONE"
+side="BOTH"
+[[dependencies.jujutsunpccompat]]
+modId="minecraft"
+mandatory=true
+versionRange="[1.20.1]"
+ordering="NONE"
+side="BOTH"
+[[dependencies.jujutsunpccompat]]
+modId="jujutsucraft"
+mandatory=true
+versionRange="[51,52)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.jujutsunpccompat]]
+modId="easy_npc"
+mandatory=true
+versionRange="[7.15.0,8)"
+ordering="AFTER"
+side="BOTH"
+[[dependencies.jujutsunpccompat]]
+modId="customnpcs"
+mandatory=true
+versionRange="[0,)"
+ordering="AFTER"
+side="BOTH"
