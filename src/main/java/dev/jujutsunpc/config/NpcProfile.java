@@ -15,6 +15,8 @@ public final class NpcProfile {
     public double regenPerSecond = 5.0;
     public boolean autoCombat = true;
     public boolean holdPositionWhenIdle = true;
+    /** Opt-in per NPC: bypass specific third-party faction/invulnerability gates for player/NPC combat. */
+    public boolean allowCombatDamage = false;
     public boolean rct = false;
     public boolean fatalRecovery = false;
     public int fatalRecoveryCharges = 1;
@@ -38,6 +40,7 @@ public final class NpcProfile {
         root.putDouble("regen", regenPerSecond);
         root.putBoolean("autoCombat", autoCombat);
         root.putBoolean("holdPositionWhenIdle", holdPositionWhenIdle);
+        root.putBoolean("allowCombatDamage", allowCombatDamage);
         root.putBoolean("rct", rct);
         root.putBoolean("fatalRecovery", fatalRecovery);
         root.putInt("fatalCharges", fatalRecoveryCharges);
@@ -57,6 +60,7 @@ public final class NpcProfile {
         p.regenPerSecond = finite(root.getDouble("regen"), 5, 0, 1000);
         p.autoCombat = !root.contains("autoCombat") || root.getBoolean("autoCombat");
         p.holdPositionWhenIdle = !root.contains("holdPositionWhenIdle") || root.getBoolean("holdPositionWhenIdle");
+        p.allowCombatDamage = root.getBoolean("allowCombatDamage");
         p.rct = root.getBoolean("rct");
         p.fatalRecovery = root.getBoolean("fatalRecovery");
         p.fatalRecoveryCharges = Math.max(0, Math.min(1000, root.getInt("fatalCharges")));
