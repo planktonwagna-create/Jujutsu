@@ -11,7 +11,7 @@ import java.util.List;
 
 /** In-game editor for both NPC families; server validates every save. */
 public final class NpcEditorScreen extends Screen {
-    private static final String[] TABS = {"Techniques", "Energy & Recovery", "Domain Defense"};
+    private static final String[] TABS = {"Techniques", "Energy & Recovery", "Domain Defense", "Combat & Movement"};
     private final int target;
     private final NpcProfile profile;
     private int page;
@@ -60,7 +60,7 @@ public final class NpcEditorScreen extends Screen {
             add(x,y,"Recovery Health: "+Math.round(profile.fatalRecoveryHealthFraction*100)+"%",()->
                     profile.fatalRecoveryHealthFraction=(profile.fatalRecoveryHealthFraction>=1f
                             ?0.25f:profile.fatalRecoveryHealthFraction+0.25f));
-        } else {
+        } else if (page == 2) {
             add(x,y,"Simple Domain: "+on(NpcProfile.Defence.SIMPLE_DOMAIN),()->
                     toggle(NpcProfile.Defence.SIMPLE_DOMAIN)); y+=26;
             add(x,y,"Falling Blossom Emotion: "+on(NpcProfile.Defence.FALLING_BLOSSOM_EMOTION),()->
@@ -68,6 +68,15 @@ public final class NpcEditorScreen extends Screen {
             add(x,y,"Domain Amplification: "+on(NpcProfile.Defence.DOMAIN_AMPLIFICATION),()->
                     toggle(NpcProfile.Defence.DOMAIN_AMPLIFICATION));
             // Hollow Wicker Basket deliberately omitted: not yet verified in JJK v51.
+        }
+        if (page == 3) {
+            add(x,y,"Automatic combat: " + profile.autoCombat,
+                    () -> profile.autoCombat = !profile.autoCombat); y+=26;
+            add(x,y,"Hold position after fighting: " + profile.holdPositionWhenIdle,
+                    () -> profile.holdPositionWhenIdle = !profile.holdPositionWhenIdle); y+=26;
+            add(x,y,"RCT Healing: " + profile.rct, () -> profile.rct = !profile.rct); y+=26;
+            add(x,y,"Fatal-hit recovery: " + profile.fatalRecovery,
+                    () -> profile.fatalRecovery = !profile.fatalRecovery);
         }
         int bottom = height-26;
         pair(x,bottom-26,"< Previous",()->page=Math.floorMod(page-1,TABS.length),
@@ -88,7 +97,11 @@ public final class NpcEditorScreen extends Screen {
                     width/2, height-78, 0xBBBBBB);
         }
         if (page==2) {
-            g.drawCenteredString(font,"Uses original JJK status effects; domain clash support pending",
+            g.drawCenteredString(font,"Original JJK domain clashes not verified",
+                    width/2,height-78,0xAAAAAA);
+        }
+        if (page==3) {
+            g.drawCenteredString(font,"NPC damage/factions are managed in its native editor",
                     width/2,height-78,0xAAAAAA);
         }
         super.render(g,mouseX,mouseY,partialTick);
