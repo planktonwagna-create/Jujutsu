@@ -31,8 +31,27 @@ jobs:
         run: |
           test -f build.gradle || { echo "::error::Project source has not been uploaded yet (missing build.gradle)."; exit 1; }
           test -f settings.gradle || { echo "::error::Missing settings.gradle."; exit 1; }
+      - name: Validate structure suppression data
+        run: |
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path('src/main/resources/data/jujutsucraft/worldgen')
+          assert not list((root/'structure').glob('*.json')), 'Unsafe structure-definition overrides present'
+          sets = list((root/'structure_set').glob('*.json'))
+          assert len(sets) == 16, f'Expected 16 disabled sets, got {len(sets)}'
+          for path in sets:
+              obj = json.loads(path.read_text())
+              assert obj['placement']['frequency'] == 0, path
+              assert obj['placement']['type'] == 'minecraft:random_spread', path
+          print(f'Validated {len(sets)} JJK structure-set overrides')
+          PY
       - name: Compile Forge mod
         run: gradle --no-daemon --stacktrace clean build
+      - name: Validate compiled mod is not empty
+        run: |
+          jar tf build/libs/jujutsu-npc-compat-*.jar | grep -q 'dev/jujutsunpc/JujutsuNpcCompatMod.class'
+          jar tf build/libs/jujutsu-npc-compat-*.jar | grep -q 'data/jujutsucraft/worldgen/structure_set/gymnasium.json'
       - name: Upload compiled JARs
         if: success()
         uses: actions/upload-artifact@v4

@@ -1,0 +1,15 @@
+{
+  "structures": [
+    {
+      "structure": "jujutsucraft:temple_tower",
+      "weight": 1
+    }
+  ],
+  "placement": {
+    "type": "minecraft:random_spread",
+    "spacing": 144,
+    "separation": 125,
+    "salt": 405288233,
+    "frequency": 0
+  }
+}
