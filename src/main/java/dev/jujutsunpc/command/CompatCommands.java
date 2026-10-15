@@ -82,6 +82,8 @@ public final class CompatCommands {
             return 0;
         }
         NpcProfile profile = NpcStorage.profile(npc);
+        net.minecraft.nbt.CompoundTag runtime = NpcStorage.runtime(npc, profile);
+        net.minecraft.nbt.CompoundTag original = npc.getPersistentData();
         StringBuilder details = new StringBuilder("JJK NPC diagnostic: ")
                 .append(npc.getName().getString())
                 .append(" | type=").append(net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(npc.getType()))
@@ -89,7 +91,14 @@ public final class CompatCommands {
                 .append(" | invulnerable=").append(npc.isInvulnerable())
                 .append(" | configured=").append(NpcStorage.configured(npc))
                 .append(" | recovery=").append(profile.fatalRecovery)
-                .append(" | idleHold=").append(profile.holdPositionWhenIdle);
+                .append(" | idleHold=").append(profile.holdPositionWhenIdle)
+                .append(" | energy=").append(Math.round(runtime.getDouble("energy")))
+                .append(" | JJK cnt1=").append(Math.round(original.getDouble("cnt1")))
+                .append(" cnt3=").append(Math.round(original.getDouble("cnt3")))
+                .append(" | active=").append(runtime.contains("activeJjkMove", 10)
+                    ? runtime.getCompound("activeJjkMove").getString("move") + "/" +
+                    runtime.getCompound("activeJjkMove").getInt("remaining") + " ticks"
+                    : "none");
         if (npc instanceof net.minecraft.world.entity.Mob mob) {
             details.append(" | noAI=").append(mob.isNoAi())
                     .append(" | target=").append(mob.getTarget() == null ? "none" : mob.getTarget().getName().getString());
