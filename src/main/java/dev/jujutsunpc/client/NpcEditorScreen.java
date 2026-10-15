@@ -74,6 +74,8 @@ public final class NpcEditorScreen extends Screen {
                     () -> profile.autoCombat = !profile.autoCombat); y+=26;
             add(x,y,"Hold position after fighting: " + profile.holdPositionWhenIdle,
                     () -> profile.holdPositionWhenIdle = !profile.holdPositionWhenIdle); y+=26;
+            add(x,y,"Allow combat damage: " + profile.allowCombatDamage,
+                    () -> profile.allowCombatDamage = !profile.allowCombatDamage); y+=26;
             add(x,y,"RCT Healing: " + profile.rct, () -> profile.rct = !profile.rct); y+=26;
             add(x,y,"Fatal-hit recovery: " + profile.fatalRecovery,
                     () -> profile.fatalRecovery = !profile.fatalRecovery);
@@ -101,7 +103,7 @@ public final class NpcEditorScreen extends Screen {
                     width/2,height-78,0xAAAAAA);
         }
         if (page==3) {
-            g.drawCenteredString(font,"NPC damage/factions are managed in its native editor",
+            g.drawCenteredString(font,"Combat damage override applies only to player/NPC hits",
                     width/2,height-78,0xAAAAAA);
         }
         super.render(g,mouseX,mouseY,partialTick);
