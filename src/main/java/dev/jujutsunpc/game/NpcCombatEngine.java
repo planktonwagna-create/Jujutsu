@@ -32,10 +32,16 @@ public final class NpcCombatEngine {
                 state.putDouble("energy", state.getDouble("energy") - 8);
             }
         }
-        if (!profile.autoCombat || tick % 10 != Math.floorMod(npc.getId(), 10)) return;
         if (!(npc instanceof Mob mob)) return;
         LivingEntity target = mob.getTarget();
-        if (target == null || !target.isAlive()) return; // Preserve the native NPC target.
+        // Do not modify native targeting. Stop stale chase/pathing when combat ends.
+        if (target != null && target.isAlive()) {
+            state.putBoolean("hasEnteredCombat", true);
+        } else if (profile.holdPositionWhenIdle && state.getBoolean("hasEnteredCombat")) {
+            mob.getNavigation().stop();
+        }
+        if (!profile.autoCombat || tick % 10 != Math.floorMod(npc.getId(), 10)) return;
+        if (target == null || !target.isAlive()) return;
         // Domain defense preempts ordinary tactical attacks. Domain clash path remains
         // disabled until v51's domain owner/creation logic is verified for both NPC types.
         if (DomainDefense.targetHasDomain(target)) {
@@ -50,6 +56,8 @@ public final class NpcCombatEngine {
         }
         double distance = npc.distanceTo(target);
         AbilityCatalog.technique(profile.technique).moves().stream()
+            // Domain creation and clashes aren't verified; don't automatically create them.
+            .filter(m -> !AbilityCatalog.isDomain(m))
             .filter(m -> distance >= m.optimalMinRange() && distance <= m.optimalMaxRange())
             .filter(m -> CastPolicy.canCast(profile.mode(m.key()), false, state.getDouble("energy"), m.cost(),
                    tick, state.getLong("ready_" + m.key())))
