@@ -45,6 +45,12 @@ public final class CompatCommands {
         npc.then(move);
         cast.then(npc);
         root.then(cast);
+        root.then(Commands.literal("inspect").then(Commands.argument("npc",EntityArgument.entity())
+                .executes(ctx -> inspect(ctx.getSource(),EntityArgument.getEntity(ctx,"npc")))));
+        root.then(Commands.literal("animate").then(Commands.argument("npc",EntityArgument.entity())
+                .then(Commands.argument("animation",StringArgumentType.word())
+                .executes(ctx -> animate(ctx.getSource(),EntityArgument.getEntity(ctx,"npc"),
+                        StringArgumentType.getString(ctx,"animation"))))));
         dispatcher.register(root);
     }
     private static int cast(CommandSourceStack source, Entity rawNpc, String move, Entity explicitTarget) {
@@ -68,6 +74,54 @@ public final class CompatCommands {
         if (!NpcCombatEngine.cast(level,npc,p,move,target,explicitTarget,true)) return 0;
         source.sendSuccess(() -> Component.literal("Attempted JJK " + move.title()
                 + " with " + npc.getName().getString()),true);
+        return 1;
+    }
+    private static int inspect(CommandSourceStack source, Entity raw) {
+        if (!(raw instanceof LivingEntity npc) || !NpcCompatibility.isCompatible(npc)) {
+            source.sendFailure(Component.literal("That entity isn't a supported Easy NPC or CustomNPCs entity."));
+            return 0;
+        }
+        NpcProfile profile = NpcStorage.profile(npc);
+        StringBuilder details = new StringBuilder("JJK NPC diagnostic: ")
+                .append(npc.getName().getString())
+                .append(" | type=").append(net.minecraftforge.registries.ForgeRegistries.ENTITY_TYPES.getKey(npc.getType()))
+                .append(" | health=").append(String.format(java.util.Locale.ROOT,"%.1f/%.1f",npc.getHealth(),npc.getMaxHealth()))
+                .append(" | invulnerable=").append(npc.isInvulnerable())
+                .append(" | configured=").append(NpcStorage.configured(npc))
+                .append(" | recovery=").append(profile.fatalRecovery)
+                .append(" | idleHold=").append(profile.holdPositionWhenIdle);
+        if (npc instanceof net.minecraft.world.entity.Mob mob) {
+            details.append(" | noAI=").append(mob.isNoAi())
+                    .append(" | target=").append(mob.getTarget() == null ? "none" : mob.getTarget().getName().getString());
+        }
+        // CustomNPCs filters friendly-faction player hits *before* vanilla hurt.
+        // This check reports that original setting; it never changes faction or damage rules.
+        try {
+            Class<?> type = npc.getClass();
+            while (type != null && !type.getName().equals("noppes.npcs.entity.EntityNPCInterface")) type = type.getSuperclass();
+            if (type != null) {
+                Object faction = type.getField("faction").get(npc);
+                net.minecraft.world.entity.player.Player player = source.getPlayerOrException();
+                boolean friendly = (boolean) faction.getClass()
+                        .getMethod("isFriendlyToPlayer", net.minecraft.world.entity.player.Player.class)
+                        .invoke(faction, player);
+                details.append(" | factionFriendlyToYou=").append(friendly);
+            }
+        } catch (ReflectiveOperationException | com.mojang.brigadier.exceptions.CommandSyntaxException ignored) {
+            // Some NPC forks hide their faction API.
+        }
+        source.sendSuccess(() -> Component.literal(details.toString()),false);
+        return 1;
+    }
+    private static int animate(CommandSourceStack source, Entity raw, String animation) {
+        if (!(raw instanceof LivingEntity npc) || !NpcCompatibility.isCompatible(npc)
+                || !NpcStorage.configured(npc) || !animation.matches("[a-z0-9_]{1,48}")) {
+            source.sendFailure(Component.literal("Invalid NPC or animation name."));
+            return 0;
+        }
+        dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,animation);
+        source.sendSuccess(() -> Component.literal("Sent original JJK animation " + animation
+                + " to nearby clients; visibility depends on NPC renderer support."),false);
         return 1;
     }
     private CompatCommands() {}
