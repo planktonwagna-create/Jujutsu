@@ -40,7 +40,7 @@ public final class JujutsuProcedureBridge {
         try {
             caster.lookAt(EntityAnchorArgument.Anchor.EYES, aim);
             // Critical for JJK procedures that read Mob#getTarget instead of facing.
-            if (mob != null) mob.setTarget(explicitTarget);
+            if (mob != null && oldTarget != explicitTarget) mob.setTarget(explicitTarget);
             Method method = findMethod(move.procedure());
             if (method == null) return false;
             if (method.getParameterCount() == 5) {
@@ -57,7 +57,7 @@ public final class JujutsuProcedureBridge {
             LOG.warn("JujutsuCraft procedure {} unavailable for NPC {}", move.procedure(), caster.getUUID(), e);
             return false;
         } finally {
-            if (mob != null) mob.setTarget(oldTarget);
+            if (mob != null && mob.getTarget() != oldTarget) mob.setTarget(oldTarget);
         }
     }
 
