@@ -14,6 +14,7 @@ public final class NpcProfile {
     public double maxEnergy = 500.0;
     public double regenPerSecond = 5.0;
     public boolean autoCombat = true;
+    public boolean holdPositionWhenIdle = true;
     public boolean rct = false;
     public boolean fatalRecovery = false;
     public int fatalRecoveryCharges = 1;
@@ -36,6 +37,7 @@ public final class NpcProfile {
         root.putDouble("maxEnergy", maxEnergy);
         root.putDouble("regen", regenPerSecond);
         root.putBoolean("autoCombat", autoCombat);
+        root.putBoolean("holdPositionWhenIdle", holdPositionWhenIdle);
         root.putBoolean("rct", rct);
         root.putBoolean("fatalRecovery", fatalRecovery);
         root.putInt("fatalCharges", fatalRecoveryCharges);
@@ -54,6 +56,7 @@ public final class NpcProfile {
         p.maxEnergy = finite(root.getDouble("maxEnergy"), 500, 1, 100000);
         p.regenPerSecond = finite(root.getDouble("regen"), 5, 0, 1000);
         p.autoCombat = !root.contains("autoCombat") || root.getBoolean("autoCombat");
+        p.holdPositionWhenIdle = !root.contains("holdPositionWhenIdle") || root.getBoolean("holdPositionWhenIdle");
         p.rct = root.getBoolean("rct");
         p.fatalRecovery = root.getBoolean("fatalRecovery");
         p.fatalRecoveryCharges = Math.max(0, Math.min(1000, root.getInt("fatalCharges")));
