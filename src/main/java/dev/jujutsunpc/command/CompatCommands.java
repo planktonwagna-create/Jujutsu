@@ -92,6 +92,7 @@ public final class CompatCommands {
                 .append(" | configured=").append(NpcStorage.configured(npc))
                 .append(" | recovery=").append(profile.fatalRecovery)
                 .append(" | idleHold=").append(profile.holdPositionWhenIdle)
+                .append(" | allowCombatDamage=").append(profile.allowCombatDamage)
                 .append(" | energy=").append(Math.round(runtime.getDouble("energy")))
                 .append(" | JJK cnt1=").append(Math.round(original.getDouble("cnt1")))
                 .append(" cnt3=").append(Math.round(original.getDouble("cnt3")))
