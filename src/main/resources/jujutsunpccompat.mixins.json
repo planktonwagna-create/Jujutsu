@@ -3,6 +3,11 @@
   "minVersion": "0.8",
   "package": "dev.jujutsunpc.mixin",
   "compatibilityLevel": "JAVA_17",
-  "client": ["HumanoidPoseMixin"],
-  "injectors": {"defaultRequire": 1}
+  "client": [
+    "HumanoidPoseMixin",
+    "CustomNpcPlayerPoseMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
 }
