@@ -51,6 +51,13 @@ public final class CompatCommands {
                 .then(Commands.argument("animation",StringArgumentType.word())
                 .executes(ctx -> animate(ctx.getSource(),EntityArgument.getEntity(ctx,"npc"),
                         StringArgumentType.getString(ctx,"animation"))))));
+        root.then(Commands.literal("duel")
+                .then(Commands.argument("first", EntityArgument.entity())
+                .then(Commands.argument("second", EntityArgument.entity())
+                .executes(ctx -> duel(ctx.getSource(),
+                        EntityArgument.getEntity(ctx,"first"), EntityArgument.getEntity(ctx,"second"))))));
+        root.then(Commands.literal("duelstop").then(Commands.argument("npc",EntityArgument.entity())
+                .executes(ctx -> duelstop(ctx.getSource(),EntityArgument.getEntity(ctx,"npc")))));
         dispatcher.register(root);
     }
     private static int cast(CommandSourceStack source, Entity rawNpc, String move, Entity explicitTarget) {
@@ -93,6 +100,7 @@ public final class CompatCommands {
                 .append(" | recovery=").append(profile.fatalRecovery)
                 .append(" | idleHold=").append(profile.holdPositionWhenIdle)
                 .append(" | allowCombatDamage=").append(profile.allowCombatDamage)
+                .append(" | duel=").append(dev.jujutsunpc.game.NpcMeleeBridge.dueling(npc))
                 .append(" | energy=").append(Math.round(runtime.getDouble("energy")))
                 .append(" | JJK cnt1=").append(Math.round(original.getDouble("cnt1")))
                 .append(" cnt3=").append(Math.round(original.getDouble("cnt3")))
@@ -132,6 +140,37 @@ public final class CompatCommands {
         dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,animation);
         source.sendSuccess(() -> Component.literal("Sent original JJK animation " + animation
                 + " to nearby clients; visibility depends on NPC renderer support."),false);
+        return 1;
+    }
+    /** Starts a symmetric, opt-in NPC-vs-NPC fight without changing native factions or healing. */
+    private static int duel(CommandSourceStack source, Entity first, Entity second) {
+        if (first == second || !(first instanceof LivingEntity a) || !(second instanceof LivingEntity b)
+                || !(a instanceof net.minecraft.world.entity.Mob)
+                || !(b instanceof net.minecraft.world.entity.Mob)
+                || !NpcCompatibility.isCompatible(a) || !NpcCompatibility.isCompatible(b)
+                || a.level() != b.level() || a.distanceToSqr(b) > 4096) {
+            source.sendFailure(Component.literal("Choose two distinct nearby Easy NPC or CustomNPCs mobs in the same level."));
+            return 0;
+        }
+        NpcProfile pa = NpcStorage.profile(a);
+        NpcProfile pb = NpcStorage.profile(b);
+        pa.allowCombatDamage = true;
+        pb.allowCombatDamage = true;
+        NpcStorage.save(a,pa);
+        NpcStorage.save(b,pb);
+        dev.jujutsunpc.game.NpcMeleeBridge.setDuel(a,b);
+        dev.jujutsunpc.game.NpcMeleeBridge.setDuel(b,a);
+        source.sendSuccess(() -> Component.literal("NPC duel started: " + a.getName().getString()
+                + " vs " + b.getName().getString() + ". Both can take combat damage; healing unchanged."),true);
+        return 1;
+    }
+    private static int duelstop(CommandSourceStack source, Entity raw) {
+        if (!(raw instanceof LivingEntity npc) || !NpcCompatibility.isCompatible(npc)) {
+            source.sendFailure(Component.literal("Not a supported NPC."));
+            return 0;
+        }
+        dev.jujutsunpc.game.NpcMeleeBridge.stopDuelPair(npc);
+        source.sendSuccess(() -> Component.literal("Stopped linked NPC duel. Damage settings are preserved."),true);
         return 1;
     }
     private CompatCommands() {}

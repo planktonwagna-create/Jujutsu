@@ -52,6 +52,7 @@ public final class NpcCombatEngine {
             return;
         }
 
+        NpcMeleeBridge.tick(level, npc, state);
         if (!(npc instanceof Mob mob)) return;
         LivingEntity target = mob.getTarget();
         if (target != null && target.isAlive()) {
