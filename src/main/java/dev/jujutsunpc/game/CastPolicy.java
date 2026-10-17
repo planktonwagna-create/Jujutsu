@@ -1,16 +1,18 @@
 package dev.jujutsunpc.game;
 
-/** Pure Java, unit-testable rules; no Minecraft dependencies. */
+/** Cooldown-only casting policy. Seconds are stored in the NPC profile. */
 public final class CastPolicy {
     public enum Mode { DISABLED, AUTOMATIC, TRIGGERED, BOTH;
-        public boolean automatic() { return this == AUTOMATIC || this == BOTH; }
-        public boolean triggered() { return this == TRIGGERED || this == BOTH; }
-        public Mode next() { return values()[(ordinal() + 1) % values().length]; }
+        public boolean automatic(){return this==AUTOMATIC||this==BOTH;}
+        public boolean triggered(){return this==TRIGGERED||this==BOTH;}
+        public Mode next(){return values()[(ordinal()+1)%values().length];}
     }
-    public static boolean canCast(Mode mode, boolean manual, double energy, double cost,
-                                  long tick, long cooldownReadyTick) {
-        if (manual) return mode.triggered(); // Explicit manual casts ALWAYS bypass energy and cooldowns.
-        return mode.automatic() && energy >= cost && tick >= cooldownReadyTick;
+    /** Both automatic and operator-triggered moves observe the same per-move cooldown. */
+    public static boolean canCast(Mode mode,boolean manual,long now,long readyTick) {
+        return (manual?mode.triggered():mode.automatic()) && now>=readyTick;
     }
-    private CastPolicy() {}
+    public static long secondsToTicks(int seconds) {
+        return Math.max(0,Math.min(3600,seconds))*20L;
+    }
+    private CastPolicy(){}
 }

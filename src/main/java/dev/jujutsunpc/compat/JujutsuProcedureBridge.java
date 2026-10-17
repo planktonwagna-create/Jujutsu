@@ -6,6 +6,10 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.LevelAccessor;
+import net.minecraft.world.effect.MobEffect;
+import net.minecraft.world.effect.MobEffectInstance;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
 import java.lang.reflect.Method;
@@ -31,12 +35,40 @@ public final class JujutsuProcedureBridge {
 
     public static boolean tryCast(ServerLevel level, LivingEntity caster,
                                   AbilityCatalog.Move move, Vec3 aim, LivingEntity explicitTarget) {
+        return tryCast(level,caster,move,aim,explicitTarget,null);
+    }
+
+    /**
+     * Malevolent Shrine variant in v51 is chosen by SUKUNA_EFFECT inside the
+     * original DomainExpansionCreateBarrierProcedure. Only expose this switch
+     * for Shrine. The effect is temporarily added/hidden solely while the
+     * procedure runs and the previous effect state is then restored.
+     */
+    public static boolean tryCast(ServerLevel level, LivingEntity caster,
+                                  AbilityCatalog.Move move, Vec3 aim,
+                                  LivingEntity explicitTarget, Boolean openShrine) {
         if (aim == null || !Double.isFinite(aim.x) || !Double.isFinite(aim.y)
                 || !Double.isFinite(aim.z)) return false;
         if (caster.position().distanceToSqr(aim) > 128 * 128) return false;
         if (explicitTarget != null && (explicitTarget.level() != level || !explicitTarget.isAlive())) return false;
         Mob mob = caster instanceof Mob m ? m : null;
         LivingEntity oldTarget = mob != null ? mob.getTarget() : null;
+        MobEffect sukunaEffect=null;
+        MobEffectInstance previousEffect=null;
+        boolean addedEffect=false;
+        boolean removedEffect=false;
+        if(openShrine!=null && AbilityCatalog.isDomain(move)){
+            sukunaEffect=ForgeRegistries.MOB_EFFECTS.getValue(
+                    new ResourceLocation("jujutsucraft","sukuna_effect"));
+            if(sukunaEffect!=null){
+                previousEffect=caster.getEffect(sukunaEffect);
+                if(openShrine && previousEffect==null){
+                    addedEffect=caster.addEffect(new MobEffectInstance(sukunaEffect,4,0,false,false,false));
+                }else if(!openShrine && previousEffect!=null){
+                    removedEffect=caster.removeEffect(sukunaEffect);
+                }
+            }
+        }
         try {
             caster.lookAt(EntityAnchorArgument.Anchor.EYES, aim);
             // Critical for JJK procedures that read Mob#getTarget instead of facing.
@@ -57,6 +89,11 @@ public final class JujutsuProcedureBridge {
             LOG.warn("JujutsuCraft procedure {} unavailable for NPC {}", move.procedure(), caster.getUUID(), e);
             return false;
         } finally {
+            if(sukunaEffect!=null){
+                if(addedEffect)caster.removeEffect(sukunaEffect);
+                if(removedEffect && previousEffect!=null)
+                    caster.addEffect(new MobEffectInstance(previousEffect));
+            }
             if (mob != null && mob.getTarget() != oldTarget) mob.setTarget(oldTarget);
         }
     }

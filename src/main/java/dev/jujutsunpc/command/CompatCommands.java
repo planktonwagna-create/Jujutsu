@@ -78,8 +78,11 @@ public final class CompatCommands {
         NpcProfile p = NpcStorage.profile(npc);
         AbilityCatalog.Move move = AbilityCatalog.move(p.technique,moveId).orElse(null);
         if (move == null) return 0;
-        if (!NpcCombatEngine.cast(level,npc,p,move,target,explicitTarget,true)) return 0;
-        source.sendSuccess(() -> Component.literal("Attempted JJK " + move.title()
+        if (!NpcCombatEngine.cast(level,npc,p,move,target,explicitTarget,true)) {
+            source.sendFailure(Component.literal("Move unavailable: check its mode, cooldown, current charge, or target."));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal("Scheduled JJK " + move.title()
                 + " with " + npc.getName().getString()),true);
         return 1;
     }
@@ -101,12 +104,14 @@ public final class CompatCommands {
                 .append(" | idleHold=").append(profile.holdPositionWhenIdle)
                 .append(" | allowCombatDamage=").append(profile.allowCombatDamage)
                 .append(" | duel=").append(dev.jujutsunpc.game.NpcMeleeBridge.dueling(npc))
-                .append(" | energy=").append(Math.round(runtime.getDouble("energy")))
+                .append(" | RCT active=").append(profile.rctActiveSeconds).append("s")
+                .append(" | RCT cooldown=").append(profile.rctCooldownSeconds).append("s")
                 .append(" | JJK cnt1=").append(Math.round(original.getDouble("cnt1")))
                 .append(" cnt3=").append(Math.round(original.getDouble("cnt3")))
                 .append(" | active=").append(runtime.contains("activeJjkMove", 10)
                     ? runtime.getCompound("activeJjkMove").getString("move") + "/" +
-                    runtime.getCompound("activeJjkMove").getInt("remaining") + " ticks"
+                    (runtime.getCompound("activeJjkMove").getBoolean("charging") ? "charging" : "casting")
+                    + "/" + runtime.getCompound("activeJjkMove").getInt("remaining") + " steps"
                     : "none");
         if (npc instanceof net.minecraft.world.entity.Mob mob) {
             details.append(" | noAI=").append(mob.isNoAi())

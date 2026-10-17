@@ -26,7 +26,6 @@ public final class NpcStorage {
         if (!tag.getString("npcUuid").equals(npc.getUUID().toString())) {
             tag = new CompoundTag();
             tag.putString("npcUuid", npc.getUUID().toString());
-            tag.putDouble("energy", p.maxEnergy);
             tag.putInt("fatalChargesLeft", p.fatalRecoveryCharges);
             npc.getPersistentData().put(STATE, tag);
         }
