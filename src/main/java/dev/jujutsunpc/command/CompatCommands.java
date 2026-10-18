@@ -10,6 +10,7 @@ import dev.jujutsunpc.config.NpcProfile;
 import dev.jujutsunpc.config.NpcStorage;
 import dev.jujutsunpc.game.AbilityCatalog;
 import dev.jujutsunpc.game.NpcCombatEngine;
+import dev.jujutsunpc.game.ItemMoveCatalog;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.EntityArgument;
@@ -47,7 +48,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.8 | editor: 6 top tabs | barrier: open/closed | Shrine: normal/mutated"
+                "Jujutsu NPC Compat v0.9 | techniques: expanded | held-key charge | crouch variants | item skills"
             ),false);
             return 1;
         }));
@@ -83,6 +84,8 @@ public final class CompatCommands {
                 || !(npc.level() instanceof ServerLevel level) || !NpcStorage.configured(npc)) return 0;
         NpcProfile p = NpcStorage.profile(npc);
         AbilityCatalog.Move move = AbilityCatalog.move(p.technique,moveId).orElse(null);
+        if(move==null)move=ItemMoveCatalog.equipped(npc).stream()
+                .filter(m->m.key().equals(moveId)).findFirst().orElse(null);
         if (move == null) return 0;
         if (!NpcCombatEngine.cast(level,npc,p,move,target,explicitTarget,true)) {
             source.sendFailure(Component.literal("Move unavailable: check its mode, cooldown, current charge, or target."));

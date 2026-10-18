@@ -14,6 +14,11 @@ public final class CastPolicySmokeTest {
         check(CastPolicy.secondsToTicks(15)==300L,"seconds to ticks");
         check(AbilityCatalog.move("limitless","blue").isPresent(),"blue available");
         check(AbilityCatalog.move("shrine","blue").isEmpty(),"move tied to technique");
+        check(AbilityCatalog.ALL.size() >= 45,"many expanded techniques");
+        check(AbilityCatalog.move("limitless","attack").isPresent(),"universal melee");
+        check(AbilityCatalog.move("shrine","barrage").isPresent(),"universal barrage");
+        check(AbilityCatalog.supportsCharge(AbilityCatalog.move("limitless","blue").orElseThrow()),"native hold check for blue");
+        check(AbilityCatalog.supportsCrouch(AbilityCatalog.move("shrine","dismantle").orElseThrow()),"native sneak check");
         System.out.println("PASS: cooldown-only policy checks");
     }
 }

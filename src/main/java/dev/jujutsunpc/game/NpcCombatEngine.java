@@ -64,6 +64,13 @@ public final class NpcCombatEngine {
                 return;
             }
         }
+        for(AbilityCatalog.Move itemMove:ItemMoveCatalog.equipped(npc)){
+            String itemKey=ItemMoveCatalog.key(npc,itemMove);
+            if(CastPolicy.canCast(profile.itemMode(itemKey),false,now,state.getLong("ready_"+itemKey))
+                    && distance<=itemMove.optimalMaxRange()
+                    && cast(level,npc,profile,itemMove,target.getBoundingBox().getCenter(),target,false))
+                return;
+        }
         AbilityCatalog.technique(profile.technique).moves().stream()
             .filter(m -> !AbilityCatalog.isDomain(m))
             .filter(m -> distance>=m.optimalMinRange() && distance<=m.optimalMaxRange())
@@ -90,8 +97,9 @@ public final class NpcCombatEngine {
         }
     }
 
-    private static int totalTicks(AbilityCatalog.Move move){
+    private static int totalTicks(AbilityCatalog.Move move) {
         if(AbilityCatalog.isDomain(move))return 95;
+        if(AbilityCatalog.supportsCharge(move))return 40;
         return switch(move.key()){
             case "blue","red","dismantle" -> 32;
             case "purple" -> 65;
@@ -101,111 +109,130 @@ public final class NpcCombatEngine {
             default -> 1;
         };
     }
-    private static void finish(NpcProfile p,CompoundTag state,AbilityCatalog.Move move,long now){
+    private static String cooldownKey(LivingEntity npc,AbilityCatalog.Move move) {
+        return ItemMoveCatalog.available(npc,move)?ItemMoveCatalog.key(npc,move):move.key();
+    }
+    private static void finish(NpcProfile p,CompoundTag state,CompoundTag active,long now) {
         state.remove(ACTIVE);
-        if(move!=null){
-            state.putLong("ready_"+move.key(),now+CastPolicy.secondsToTicks(p.cooldown(move.key())));
+        String key=active.getString("cooldownKey");
+        if(!key.isEmpty()){
+            int seconds=active.getBoolean("item")
+                    ?p.itemCooldown(key):p.cooldown(active.getString("move"));
+            state.putLong("ready_"+key,now+CastPolicy.secondsToTicks(seconds));
         }
     }
-    private static Vec3 aim(CompoundTag active,LivingEntity target){
+    private static Vec3 aim(CompoundTag active,LivingEntity target) {
         return target!=null?target.getBoundingBox().getCenter()
                 :new Vec3(active.getDouble("x"),active.getDouble("y"),active.getDouble("z"));
     }
-    private static LivingEntity resolve(ServerLevel level,CompoundTag active){
+    private static LivingEntity resolve(ServerLevel level,CompoundTag active) {
         if(!active.hasUUID("target"))return null;
         Entity e=level.getEntity(active.getUUID("target"));
         return e instanceof LivingEntity living && living.isAlive()?living:null;
     }
     private static boolean original(ServerLevel level,LivingEntity npc,NpcProfile p,
-                                    AbilityCatalog.Move move,Vec3 target,LivingEntity enemy){
-        boolean isShrine=AbilityCatalog.isDomain(move)
+                                    AbilityCatalog.Move move,Vec3 target,LivingEntity enemy,
+                                    boolean pressed,boolean crouching) {
+        boolean shrine=AbilityCatalog.isDomain(move)
+                && "MalevolentShrineProcedure".equals(move.procedure())
                 && NpcProfile.allowsOpenDomain(p.technique);
         return JujutsuProcedureBridge.tryCast(level,npc,move,target,enemy,
-                isShrine ? p.domainOpen : null,
-                isShrine ? p.shrineModel : null);
+                shrine?p.domainOpen:null,shrine?p.shrineModel:null,pressed,crouching);
     }
     private static void resetJjkCounters(LivingEntity npc){
         CompoundTag jjk=npc.getPersistentData();
-        jjk.putDouble("cnt1",0); jjk.putDouble("cnt2",0); jjk.putDouble("cnt3",0);
+        jjk.putDouble("cnt1",0);jjk.putDouble("cnt2",0);jjk.putDouble("cnt3",0);
     }
-    /** Advances a charge delay or one original JJK procedure step per game tick. */
-    private static void advance(ServerLevel level,LivingEntity npc,NpcProfile p,CompoundTag state,long now){
+    private static boolean chooseCrouch(NpcProfile p,AbilityCatalog.Move move,CompoundTag state) {
+        if(!AbilityCatalog.supportsCrouch(move))return false;
+        return switch(p.crouch(move.key())){
+            case REGULAR -> false;
+            case CROUCHING -> true;
+            case ALTERNATE -> {
+                String id="alternate_"+move.key();
+                boolean next=!state.getBoolean(id);
+                state.putBoolean(id,next);
+                yield next;
+            }
+        };
+    }
+    private static void advance(ServerLevel level,LivingEntity npc,NpcProfile p,
+                                CompoundTag state,long now) {
         CompoundTag active=state.getCompound(ACTIVE);
-        AbilityCatalog.Move move=AbilityCatalog.move(p.technique,active.getString("move")).orElse(null);
-        if(move==null){state.remove(ACTIVE);return;}
+        AbilityCatalog.Move move;
+        if(active.getBoolean("item")){
+            move=ItemMoveCatalog.equipped(npc).stream()
+                    .filter(m->m.key().equals(active.getString("move"))).findFirst().orElse(null);
+        }else{
+            move=AbilityCatalog.move(p.technique,active.getString("move")).orElse(null);
+        }
+        if(move==null){finish(p,state,active,now);return;}
         LivingEntity target=resolve(level,active);
         if(active.hasUUID("target") && target==null && !AbilityCatalog.isDomain(move)){
-            finish(p,state,move,now);
+            finish(p,state,active,now);
             return;
         }
-        if(active.getBoolean("charging")){
-            if(now<active.getLong("chargeUntil"))return;
-            active.putBoolean("charging",false);
-            resetJjkCounters(npc);
-            if(!original(level,npc,p,move,aim(active,target),target)){
-                LOG.warn("JJK charged move {} could not begin for NPC {}",move.key(),npc.getUUID());
-                finish(p,state,move,now);
-                return;
-            }
-            play(npc,move);
-            int remaining=totalTicks(move)-1;
-            active.putInt("remaining",remaining);
-            if(remaining<=0)finish(p,state,move,now);
+        long until=active.getLong("releaseTick");
+        boolean pressing=now<until;
+        if(active.getBoolean("holding") && !pressing){
+            active.putBoolean("holding",false);
+            active.putInt("remaining",totalTicks(move));
+        }
+        if(!original(level,npc,p,move,aim(active,target),target,
+                pressing,active.getBoolean("crouching"))){
+            LOG.warn("JJK NPC {} could not continue {}",npc.getUUID(),move.key());
+            finish(p,state,active,now);
             return;
         }
-        int left=active.getInt("remaining");
-        if(left<=0){finish(p,state,move,now);return;}
-        if(!original(level,npc,p,move,aim(active,target),target)){
-            LOG.warn("JJK move {} stopped during sequence for NPC {}",move.key(),npc.getUUID());
-            finish(p,state,move,now);
-            return;
+        if(!pressing){
+            int left=active.getInt("remaining")-1;
+            active.putInt("remaining",left);
+            if(left<=0)finish(p,state,active,now);
         }
-        active.putInt("remaining",left-1);
         active.putLong("lastAdvanced",now);
-        if(left<=1)finish(p,state,move,now);
     }
-    private static void play(LivingEntity npc,AbilityCatalog.Move move){
+    private static void play(LivingEntity npc,AbilityCatalog.Move move) {
         String anim=AbilityCatalog.originalAnimation(move.key());
         if(!anim.isEmpty())dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,anim);
     }
     public static boolean cast(ServerLevel level,LivingEntity npc,NpcProfile p,
-                               AbilityCatalog.Move move,Vec3 pos,boolean manual){
+                               AbilityCatalog.Move move,Vec3 pos,boolean manual) {
         return cast(level,npc,p,move,pos,null,manual);
     }
     public static boolean cast(ServerLevel level,LivingEntity npc,NpcProfile p,
-                               AbilityCatalog.Move move,Vec3 pos,LivingEntity target,boolean manual){
-        if(!NpcCompatibility.isCompatible(npc) || !NpcStorage.configured(npc) || !npc.isAlive()
-                || AbilityCatalog.move(p.technique,move.key()).isEmpty())return false;
+                               AbilityCatalog.Move move,Vec3 pos,LivingEntity target,boolean manual) {
+        if(!NpcCompatibility.isCompatible(npc)||!NpcStorage.configured(npc)||!npc.isAlive())return false;
+        boolean item=ItemMoveCatalog.available(npc,move);
+        if(!item&&AbilityCatalog.move(p.technique,move.key()).isEmpty())return false;
         CompoundTag state=NpcStorage.runtime(npc,p);
         if(state.contains(ACTIVE,10))return false;
         long now=level.getGameTime();
-        if(!CastPolicy.canCast(p.mode(move.key()),manual,now,state.getLong("ready_"+move.key())))
-            return false;
+        String readyKey=item?ItemMoveCatalog.key(npc,move):move.key();
+        if(!CastPolicy.canCast(item?p.itemMode(readyKey):p.mode(move.key()),
+                manual,now,state.getLong("ready_"+readyKey)))return false;
         if(!manual&&!AutomaticCastLimiter.canBegin(level,now))return false;
-        if(pos==null || !Double.isFinite(pos.x)||!Double.isFinite(pos.y)||!Double.isFinite(pos.z)
+        if(pos==null||!Double.isFinite(pos.x)||!Double.isFinite(pos.y)||!Double.isFinite(pos.z)
                 || npc.position().distanceToSqr(pos)>128*128)return false;
-        if(target!=null && (!target.isAlive()||target.level()!=level))return false;
-
-        int charge=p.charge(move.key());
-        if(charge==0){
-            resetJjkCounters(npc);
-            if(!original(level,npc,p,move,pos,target))return false;
-        }
+        if(target!=null&&(!target.isAlive()||target.level()!=level))return false;
+        int charge=!item && AbilityCatalog.supportsCharge(move)?p.charge(move.key()):0;
+        boolean crouching=!item&&chooseCrouch(p,move,state);
+        resetJjkCounters(npc);
+        if(!original(level,npc,p,move,pos,target,true,crouching))return false;
         if(!manual)AutomaticCastLimiter.didBegin(level,now);
-        int remaining=totalTicks(move)-(charge==0?1:0);
-        if(remaining>0||charge>0){
-            CompoundTag active=new CompoundTag();
-            active.putString("move",move.key());
-            active.putInt("remaining",remaining);
-            active.putDouble("x",pos.x);active.putDouble("y",pos.y);active.putDouble("z",pos.z);
-            active.putBoolean("charging",charge>0);
-            active.putLong("chargeUntil",now+CastPolicy.secondsToTicks(charge));
-            if(target!=null)active.putUUID("target",target.getUUID());
-            state.put(ACTIVE,active);
-        }else finish(p,state,move,now);
-        if(charge==0)play(npc,move);
-        LOG.info("JJK NPC {} scheduled {} charge={}s cooldown={}s manual={}",
-                npc.getUUID(),move.key(),charge,p.cooldown(move.key()),manual);
+        CompoundTag active=new CompoundTag();
+        active.putString("move",move.key());
+        active.putString("cooldownKey",readyKey);
+        active.putBoolean("item",item);
+        active.putBoolean("crouching",crouching);
+        active.putBoolean("holding",true);
+        active.putLong("releaseTick",now+Math.max(1,charge*20L));
+        active.putInt("remaining",totalTicks(move));
+        active.putDouble("x",pos.x);active.putDouble("y",pos.y);active.putDouble("z",pos.z);
+        if(target!=null)active.putUUID("target",target.getUUID());
+        state.put(ACTIVE,active);
+        play(npc,move);
+        LOG.info("JJK NPC {} began {} pressed for {} ticks, crouching={} item={}",
+                npc.getUUID(),move.key(),Math.max(1,charge*20),crouching,item);
         return true;
     }
 

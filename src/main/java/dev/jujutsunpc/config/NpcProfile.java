@@ -13,6 +13,12 @@ public final class NpcProfile {
     public Map<String, Mode> moveModes = new LinkedHashMap<>();
     public Map<String, Integer> moveCooldowns = new LinkedHashMap<>();
     public Map<String, Integer> moveCharges = new LinkedHashMap<>();
+    public enum CrouchMode { REGULAR, CROUCHING, ALTERNATE;
+        public CrouchMode next(){return values()[(ordinal()+1)%values().length];}
+    }
+    public Map<String,CrouchMode> moveCrouches = new LinkedHashMap<>();
+    public Map<String,Integer> itemCooldowns = new LinkedHashMap<>();
+    public Map<String,Mode> itemMoveModes = new LinkedHashMap<>();
     public EnumMap<Defence, Integer> defenceCooldowns = new EnumMap<>(Defence.class);
     public boolean domainOpen = false; // Only meaningful for the Shrine technique in JJK v51.
     public ShrineModel shrineModel = ShrineModel.NORMAL;
@@ -35,6 +41,7 @@ public final class NpcProfile {
         moveModes.clear();
         moveCooldowns.clear();
         moveCharges.clear();
+        moveCrouches.clear();
     }
     public void setMoveMode(String key, Mode mode) {
         if (AbilityCatalog.move(technique,key).isPresent()) moveModes.put(key,mode);
@@ -44,6 +51,15 @@ public final class NpcProfile {
                 .map(m -> Math.max(1,(m.cooldownTicks()+19)/20)).orElse(5));
     }
     public int charge(String move) { return moveCharges.getOrDefault(move,0); }
+    public CrouchMode crouch(String move){return moveCrouches.getOrDefault(move,CrouchMode.REGULAR);}
+    public void setCrouch(String move,CrouchMode mode){
+        if(AbilityCatalog.move(technique,move).isPresent())moveCrouches.put(move,mode);
+    }
+    public int itemCooldown(String itemMove){return itemCooldowns.getOrDefault(itemMove,5);}
+    public void setItemCooldown(String key,int seconds){itemCooldowns.put(key,clamp(seconds,0,3600));}
+    public Mode itemMode(String key){return itemMoveModes.getOrDefault(key,Mode.DISABLED);}
+    public void setItemMode(String key,Mode mode){itemMoveModes.put(key,mode);}
+
     public void setCooldown(String move, int seconds) {
         if (AbilityCatalog.move(technique,move).isPresent())
             moveCooldowns.put(move,clamp(seconds,0,3600));
@@ -85,6 +101,15 @@ public final class NpcProfile {
         CompoundTag charges=new CompoundTag();
         moveCharges.forEach(charges::putInt);
         root.put("moveCharges",charges);
+        CompoundTag crouches=new CompoundTag();
+        moveCrouches.forEach((key,value)->crouches.putString(key,value.name()));
+        root.put("moveCrouches",crouches);
+        CompoundTag itemCooldownTags=new CompoundTag();
+        itemCooldowns.forEach(itemCooldownTags::putInt);
+        root.put("itemCooldowns",itemCooldownTags);
+        CompoundTag itemModes=new CompoundTag();
+        itemMoveModes.forEach((key,value)->itemModes.putString(key,value.name()));
+        root.put("itemMoveModes",itemModes);
         CompoundTag def=new CompoundTag();
         defences.forEach((id,value) -> def.putBoolean(id.name(),value));
         root.put("defences",def);
@@ -123,6 +148,22 @@ public final class NpcProfile {
         CompoundTag charges=root.getCompound("moveCharges");
         for(String id:charges.getAllKeys())
             if(charges.contains(id,3))p.setCharge(id,charges.getInt(id));
+        CompoundTag crouches=root.getCompound("moveCrouches");
+        for(String key:crouches.getAllKeys()){
+            if(AbilityCatalog.move(p.technique,key).isEmpty())continue;
+            try{p.setCrouch(key,CrouchMode.valueOf(crouches.getString(key)));}
+            catch(IllegalArgumentException ignored){}
+        }
+        CompoundTag itemCooldowns=root.getCompound("itemCooldowns");
+        for(String key:itemCooldowns.getAllKeys())
+            if(key.matches("[a-z0-9_:]{1,128}") && itemCooldowns.contains(key,3))
+                p.setItemCooldown(key,itemCooldowns.getInt(key));
+        CompoundTag itemModes=root.getCompound("itemMoveModes");
+        for(String key:itemModes.getAllKeys()){
+            if(!key.matches("[a-z0-9_:]{1,128}"))continue;
+            try{p.setItemMode(key,Mode.valueOf(itemModes.getString(key)));}
+            catch(IllegalArgumentException ignored){}
+        }
         CompoundTag def=root.getCompound("defences");
         for(Defence d:Defence.values())p.defences.put(d,def.getBoolean(d.name()));
         CompoundTag defCooldowns=root.getCompound("defenceCooldowns");
