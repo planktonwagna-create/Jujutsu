@@ -207,6 +207,10 @@ public final class NpcCombatEngine {
     public static boolean cast(ServerLevel level,LivingEntity npc,NpcProfile p,
                                AbilityCatalog.Move move,Vec3 pos,LivingEntity target,boolean manual) {
         if(!NpcCompatibility.isCompatible(npc)||!NpcStorage.configured(npc)||!npc.isAlive())return false;
+        // Hard domain-health requirement applies to all starts: AI and commands.
+        // 100% means no HP restriction; cooldown/move mode still apply.
+        if(AbilityCatalog.isDomain(move) &&
+                npc.getHealth()*100.0 > npc.getMaxHealth()*p.domainHealthThreshold)return false;
         boolean item=ItemMoveCatalog.available(npc,move);
         if(!item&&AbilityCatalog.move(p.technique,move.key()).isEmpty())return false;
         CompoundTag state=NpcStorage.runtime(npc,p);
