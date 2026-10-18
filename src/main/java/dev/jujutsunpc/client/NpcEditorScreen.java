@@ -8,31 +8,31 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
-
 import java.util.List;
 
 /**
- * In-game per-NPC seconds editors. Numeric inputs are committed on tab/move
- * navigation and on Save. Server independently validates all NBT values.
+ * v0.8: visible tabs across the TOP. Previous v0.7 buttons sat at screen
+ * bottom and technique lists could overlap navigation on small GUI scales.
+ * All move/defense settings use paginated controls with no scrolling needed.
  */
 public final class NpcEditorScreen extends Screen {
     private static final String[] TABS={
-        "Techniques","Move Timing","RCT & Recovery","Anti-Domain Timing","Domain Variant","Combat"
+        "1 Moves","2 Move Timers","3 RCT","4 Anti-Domain","5 Domain","6 Combat"
     };
     private final int target;
     private final NpcProfile profile;
     private int page,moveIndex,defenceIndex;
-    private EditBox moveCooldownField,moveChargeField,rctActiveField,rctCooldownField,defenceCooldownField;
+    private EditBox moveCooldown,moveCharge,rctActive,rctCooldown,defenceCooldown;
 
     public NpcEditorScreen(int target,NpcProfile profile){
-        super(Component.literal("Jujutsu NPC Configuration"));
+        super(Component.literal("Jujutsu NPC Editor v0.8"));
         this.target=target;this.profile=profile;
     }
-    private static int clamp(int value,int min,int max){return Math.max(min,Math.min(max,value));}
-    private static int parse(EditBox box,int fallback,int min,int max){
-        if(box==null)return fallback;
-        try{return clamp(Integer.parseInt(box.getValue()),min,max);}
-        catch(NumberFormatException ex){return fallback;}
+    private static int bounded(int x,int min,int max){return Math.max(min,Math.min(max,x));}
+    private static int parse(EditBox field,int fallback,int low,int high){
+        if(field==null)return fallback;
+        try{return bounded(Integer.parseInt(field.getValue()),low,high);}
+        catch(NumberFormatException e){return fallback;}
     }
     private List<AbilityCatalog.Move> moves(){return AbilityCatalog.technique(profile.technique).moves();}
     private AbilityCatalog.Move selectedMove(){
@@ -42,145 +42,144 @@ public final class NpcEditorScreen extends Screen {
         return list.get(moveIndex);
     }
     private NpcProfile.Defence selectedDefence(){
-        NpcProfile.Defence[] values=NpcProfile.Defence.values();
-        defenceIndex=Math.floorMod(defenceIndex,values.length);
-        return values[defenceIndex];
+        NpcProfile.Defence[] defs=NpcProfile.Defence.values();
+        defenceIndex=Math.floorMod(defenceIndex,defs.length);
+        return defs[defenceIndex];
     }
-    private EditBox seconds(int x,int y,int value,String label){
-        EditBox b=new EditBox(font,x,y,278,20,Component.literal(label));
-        b.setMaxLength(4);
-        b.setFilter(valueText -> valueText.matches("[0-9]{0,4}"));
-        b.setValue(Integer.toString(value));
-        addRenderableWidget(b);
-        return b;
+    private EditBox numeric(int x,int y,int initial,String hint){
+        EditBox box=new EditBox(font,x,y,278,20,Component.literal(hint));
+        box.setMaxLength(4);
+        box.setFilter(s->s.matches("[0-9]{0,4}"));
+        box.setValue(Integer.toString(initial));
+        addRenderableWidget(box);
+        return box;
     }
-    private void commitFields(){
-        AbilityCatalog.Move move=selectedMove();
-        if(move!=null){
-            if(moveCooldownField!=null)profile.setCooldown(move.key(),
-                    parse(moveCooldownField,profile.cooldown(move.key()),0,3600));
-            if(moveChargeField!=null)profile.setCharge(move.key(),
-                    parse(moveChargeField,profile.charge(move.key()),0,120));
+    private void commit(){
+        AbilityCatalog.Move selected=selectedMove();
+        if(selected!=null){
+            if(moveCooldown!=null)profile.setCooldown(selected.key(),
+                    parse(moveCooldown,profile.cooldown(selected.key()),0,3600));
+            if(moveCharge!=null)profile.setCharge(selected.key(),
+                    parse(moveCharge,profile.charge(selected.key()),0,120));
         }
-        if(rctActiveField!=null)profile.rctActiveSeconds=
-                parse(rctActiveField,profile.rctActiveSeconds,1,600);
-        if(rctCooldownField!=null)profile.rctCooldownSeconds=
-                parse(rctCooldownField,profile.rctCooldownSeconds,0,3600);
-        if(defenceCooldownField!=null){
-            NpcProfile.Defence defence=selectedDefence();
-            profile.setDefenceCooldown(defence,parse(defenceCooldownField,
-                    profile.defenceCooldown(defence),0,3600));
-        }
+        if(rctActive!=null)profile.rctActiveSeconds=parse(rctActive,profile.rctActiveSeconds,1,600);
+        if(rctCooldown!=null)profile.rctCooldownSeconds=parse(rctCooldown,profile.rctCooldownSeconds,0,3600);
+        if(defenceCooldown!=null)profile.setDefenceCooldown(selectedDefence(),
+                parse(defenceCooldown,profile.defenceCooldown(selectedDefence()),0,3600));
     }
-    private void add(int x,int y,String title,Runnable action){
-        addRenderableWidget(Button.builder(Component.literal(title),b -> {
-            commitFields();
-            action.run();
+    private void action(int x,int y,int w,String label,Runnable task){
+        addRenderableWidget(Button.builder(Component.literal(label),btn->{
+            commit();
+            task.run();
             rebuildWidgets();
-        }).bounds(x,y,278,20).build());
+        }).bounds(x,y,w,20).build());
     }
-    private void pair(int x,int y,String a,Runnable left,String b,Runnable right){
-        addRenderableWidget(Button.builder(Component.literal(a),button -> {
-            commitFields();left.run();rebuildWidgets();
-        }).bounds(x,y,136,20).build());
-        addRenderableWidget(Button.builder(Component.literal(b),button -> {
-            commitFields();right.run();rebuildWidgets();
-        }).bounds(x+142,y,136,20).build());
+    private void wide(int x,int y,String label,Runnable task){action(x,y,278,label,task);}
+    private void arrows(int x,int y,String back,Runnable previous,String next,Runnable following){
+        action(x,y,136,back,previous);
+        action(x+142,y,136,next,following);
     }
     @Override protected void init(){
-        moveCooldownField=null;moveChargeField=null;rctActiveField=null;
-        rctCooldownField=null;defenceCooldownField=null;
-        int x=width/2-139,y=43;
+        moveCooldown=null;moveCharge=null;rctActive=null;rctCooldown=null;defenceCooldown=null;
+        int x=width/2-139;
+        for(int i=0;i<TABS.length;i++){
+            final int tab=i;
+            int tabX=width/2-166+(i%3)*112;
+            int tabY=21+(i/3)*25;
+            action(tabX,tabY,108,(page==i?"[":"")+TABS[i]+(page==i?"]":""),
+                    ()->page=tab);
+        }
+        int y=79;
         if(page==0){
-            add(x,y,"Technique: "+AbilityCatalog.technique(profile.technique).title(),()->{
-                List<AbilityCatalog.Technique> list=AbilityCatalog.ALL;
-                int i=0;
-                for(int j=0;j<list.size();j++)if(list.get(j).key().equals(profile.technique))i=j;
-                profile.setTechnique(list.get((i+1)%list.size()).key());
+            wide(x,y,"Technique: "+AbilityCatalog.technique(profile.technique).title(),()->{
+                List<AbilityCatalog.Technique> all=AbilityCatalog.ALL;
+                int index=0;
+                for(int i=0;i<all.size();i++)
+                    if(all.get(i).key().equals(profile.technique)){index=i;break;}
+                profile.setTechnique(all.get((index+1)%all.size()).key());
                 moveIndex=0;
             });
-            y+=26;
-            for(AbilityCatalog.Move move:moves()){
-                String id=move.key();
-                add(x,y,move.title()+": "+profile.mode(id),()->
-                        profile.setMoveMode(id,profile.mode(id).next()));
-                y+=25;
+            if(selectedMove()!=null){
+                arrows(x,113,"< Previous Move",()->moveIndex--,"Next Move >",()->moveIndex++);
+                AbilityCatalog.Move move=selectedMove();
+                wide(x,144,move.title()+": "+profile.mode(move.key()),
+                        ()->profile.setMoveMode(move.key(),profile.mode(move.key()).next()));
             }
-            add(x,y,"Automatic combat: "+profile.autoCombat,()->profile.autoCombat=!profile.autoCombat);
+            wide(x,179,"Automatic combat: "+profile.autoCombat,
+                    ()->profile.autoCombat=!profile.autoCombat);
         }else if(page==1){
             if(selectedMove()!=null){
-                pair(x,55,"< Previous Move",()->moveIndex--,"Next Move >",()->moveIndex++);
+                arrows(x,85,"< Previous Move",()->moveIndex--,"Next Move >",()->moveIndex++);
                 AbilityCatalog.Move move=selectedMove();
-                moveCooldownField=seconds(x,111,profile.cooldown(move.key()),"Cooldown seconds");
-                moveChargeField=seconds(x,165,profile.charge(move.key()),"Charge seconds");
-            }else{
-                add(x,90,"Choose a cursed technique first",()->page=0);
-            }
+                moveCooldown=numeric(x,135,profile.cooldown(move.key()),"Cooldown seconds");
+                moveCharge=numeric(x,185,profile.charge(move.key()),"Charge seconds");
+            }else wide(x,99,"Select a technique on the Moves tab",()->page=0);
         }else if(page==2){
-            add(x,47,"RCT Healing: "+profile.rct,()->profile.rct=!profile.rct);
-            rctActiveField=seconds(x,109,profile.rctActiveSeconds,"RCT active seconds");
-            rctCooldownField=seconds(x,166,profile.rctCooldownSeconds,"RCT cooldown seconds");
-            add(x,210,"Fatal-hit recovery: "+profile.fatalRecovery,
-                    ()->profile.fatalRecovery=!profile.fatalRecovery);
-            add(x,236,"Recovery Charges: "+profile.fatalRecoveryCharges,
-                    ()->profile.fatalRecoveryCharges=(profile.fatalRecoveryCharges+1)%6);
-            add(x,262,"Recovery Health: "+Math.round(profile.fatalRecoveryHealthFraction*100)+"%",
-                    ()->profile.fatalRecoveryHealthFraction=profile.fatalRecoveryHealthFraction>=1f
-                            ?0.25f:profile.fatalRecoveryHealthFraction+0.25f);
+            wide(x,83,"RCT Healing: "+profile.rct,()->profile.rct=!profile.rct);
+            rctActive=numeric(x,135,profile.rctActiveSeconds,"RCT active seconds");
+            rctCooldown=numeric(x,185,profile.rctCooldownSeconds,"RCT cooldown seconds");
         }else if(page==3){
-            pair(x,55,"< Previous Defense",()->defenceIndex--,"Next Defense >",()->defenceIndex++);
-            NpcProfile.Defence defence=selectedDefence();
-            add(x,109,defence.name().replace('_',' ')+": "+
-                    (profile.defences.getOrDefault(defence,false)?"Enabled":"Disabled"),
-                    ()->profile.defences.put(defence,!profile.defences.getOrDefault(defence,false)));
-            defenceCooldownField=seconds(x,169,profile.defenceCooldown(defence),"Cooldown seconds");
+            arrows(x,83,"< Previous Defense",()->defenceIndex--,"Next Defense >",()->defenceIndex++);
+            NpcProfile.Defence choice=selectedDefence();
+            wide(x,113,choice.name().replace('_',' ')+": "+
+                    (profile.defences.getOrDefault(choice,false)?"Enabled":"Disabled"),
+                    ()->profile.defences.put(choice,!profile.defences.getOrDefault(choice,false)));
+            defenceCooldown=numeric(x,169,profile.defenceCooldown(choice),"Defense cooldown seconds");
         }else if(page==4){
             if(NpcProfile.allowsOpenDomain(profile.technique)){
-                add(x,70,"Malevolent Shrine: "+(profile.domainOpen?"Open":"Closed"),
+                wide(x,86,"Barrier: "+(profile.domainOpen?"OPEN (no shell)":"CLOSED (shell)"),
                         ()->profile.domainOpen=!profile.domainOpen);
+                wide(x,118,"Shrine Appearance: "+
+                        (profile.shrineModel==NpcProfile.ShrineModel.NORMAL
+                                ?"NORMAL SHRINE":"MUTATED SHRINE"),
+                        ()->profile.shrineModel=profile.shrineModel.next());
             }else{
-                add(x,70,"No selectable domain variant for this technique",()->{});
+                wide(x,97,"Select SHRINE on Moves tab to edit its domain",()->page=0);
             }
-        }else if(page==5){
-            add(x,48,"Automatic combat: "+profile.autoCombat,()->profile.autoCombat=!profile.autoCombat);
-            add(x,75,"Hold position after fighting: "+profile.holdPositionWhenIdle,
+        }else{
+            wide(x,80,"Automatic combat: "+profile.autoCombat,()->profile.autoCombat=!profile.autoCombat);
+            wide(x,106,"Hold after fighting: "+profile.holdPositionWhenIdle,
                     ()->profile.holdPositionWhenIdle=!profile.holdPositionWhenIdle);
-            add(x,102,"Allow combat damage: "+profile.allowCombatDamage,
+            wide(x,132,"Allow combat damage: "+profile.allowCombatDamage,
                     ()->profile.allowCombatDamage=!profile.allowCombatDamage);
+            wide(x,158,"Fatal-hit recovery: "+profile.fatalRecovery,
+                    ()->profile.fatalRecovery=!profile.fatalRecovery);
+            wide(x,184,"Fatal recovery charges: "+profile.fatalRecoveryCharges,
+                    ()->profile.fatalRecoveryCharges=(profile.fatalRecoveryCharges+1)%6);
         }
-        int bottom=height-26;
-        pair(x,bottom-26,"< Previous Tab",()->page=Math.floorMod(page-1,TABS.length),
-                "Next Tab >",()->page=(page+1)%TABS.length);
-        addRenderableWidget(Button.builder(Component.literal("Save & Close"),b -> {
-            commitFields();
+        addRenderableWidget(Button.builder(Component.literal("Save NPC Settings"),button->{
+            commit();
             CompatNetwork.saveFromClient(target,profile);
             onClose();
-        }).bounds(x,bottom,278,20).build());
+        }).bounds(x,height-25,278,20).build());
     }
-    @Override public void render(GuiGraphics g,int mouseX,int mouseY,float dt){
-        renderBackground(g);
-        g.drawCenteredString(font,title,width/2,9,0xFFFFFF);
-        g.drawCenteredString(font,TABS[page],width/2,26,0xAACCFF);
+    @Override public void render(GuiGraphics graphics,int mouseX,int mouseY,float delta){
+        renderBackground(graphics);
+        graphics.drawCenteredString(font,title,width/2,7,0xFFFFFF);
         int x=width/2-139;
-        if(page==1&&selectedMove()!=null){
-            g.drawCenteredString(font,selectedMove().title(),width/2,84,0xEEEEEE);
-            g.drawString(font,"Move cooldown (0–3600 seconds)",x,99,0xAAAAAA);
-            g.drawString(font,"Charge before attack (0–120 seconds)",x,153,0xAAAAAA);
+        if(page==0&&selectedMove()!=null){
+            graphics.drawCenteredString(font,"Move "+(moveIndex+1)+"/"+moves().size()
+                +" - click to change its mode",width/2,169,0xBBBBBB);
+        }else if(page==1&&selectedMove()!=null){
+            graphics.drawCenteredString(font,selectedMove().title(),width/2,114,0xFFFFFF);
+            graphics.drawString(font,"Cooldown (seconds, 0-3600)",x,121,0xAAAAAA);
+            graphics.drawString(font,"Charge before casting (seconds, 0-120)",x,171,0xAAAAAA);
         }else if(page==2){
-            g.drawString(font,"RCT can heal for this many seconds (1–600)",x,97,0xAAAAAA);
-            g.drawString(font,"Then wait (0–3600 seconds)",x,154,0xAAAAAA);
+            graphics.drawString(font,"RCT stays active for (seconds, 1-600)",x,121,0xAAAAAA);
+            graphics.drawString(font,"Wait before next RCT (seconds, 0-3600)",x,171,0xAAAAAA);
         }else if(page==3){
-            g.drawCenteredString(font,selectedDefence().name().replace('_',' '),width/2,86,0xEEEEEE);
-            g.drawString(font,"Defense cooldown (0–3600 seconds)",x,155,0xAAAAAA);
+            graphics.drawString(font,"Defense cooldown (seconds, 0-3600)",x,154,0xAAAAAA);
             if(selectedDefence()==NpcProfile.Defence.HOLLOW_WICKER_BASKET)
-                g.drawString(font,"Hollow Wicker Basket is not supported in v51",x,207,0xFF8888);
+                graphics.drawCenteredString(font,"Hollow Wicker Basket not implemented in v51",
+                    width/2,197,0xFF8888);
         }else if(page==4){
-            g.drawCenteredString(font,"Only Shrine has a verified open barrier path in v51",
-                    width/2,108,0xAAAAAA);
-            g.drawCenteredString(font,"Open/closed behavior still requires an in-game test",
-                    width/2,123,0xAAAAAA);
+            graphics.drawCenteredString(font,"Barrier and shrine model are independent.",
+                    width/2,154,0xBBBBBB);
+            graphics.drawCenteredString(font,"Appearance changes which original v51 shrine spawns.",
+                    width/2,168,0xBBBBBB);
+            graphics.drawCenteredString(font,"Test on a world backup.",width/2,183,0xBBBBBB);
         }
-        super.render(g,mouseX,mouseY,dt);
+        super.render(graphics,mouseX,mouseY,delta);
     }
     @Override public boolean isPauseScreen(){return false;}
 }

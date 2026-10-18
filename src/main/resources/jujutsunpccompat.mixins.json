@@ -12,6 +12,7 @@
   },
   "mixins": [
     "EasyNpcDamageMixin",
-    "CustomNpcFactionDamageMixin"
+    "CustomNpcFactionDamageMixin",
+    "ShrineAppearanceMixin"
   ]
 }

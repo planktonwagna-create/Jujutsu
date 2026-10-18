@@ -15,6 +15,8 @@ public final class NpcProfile {
     public Map<String, Integer> moveCharges = new LinkedHashMap<>();
     public EnumMap<Defence, Integer> defenceCooldowns = new EnumMap<>(Defence.class);
     public boolean domainOpen = false; // Only meaningful for the Shrine technique in JJK v51.
+    public ShrineModel shrineModel = ShrineModel.NORMAL;
+    public enum ShrineModel { NORMAL, MUTATED; public ShrineModel next(){return this==NORMAL?MUTATED:NORMAL;} }
     public int rctActiveSeconds = 8;
     public int rctCooldownSeconds = 20;
     public boolean autoCombat = true;
@@ -70,6 +72,7 @@ public final class NpcProfile {
         root.putInt("rctActiveSeconds",rctActiveSeconds);
         root.putInt("rctCooldownSeconds",rctCooldownSeconds);
         root.putBoolean("domainOpen",domainOpen);
+        root.putString("shrineModel",shrineModel.name());
         root.putBoolean("fatalRecovery",fatalRecovery);
         root.putInt("fatalCharges",fatalRecoveryCharges);
         root.putFloat("fatalHealth",fatalRecoveryHealthFraction);
@@ -102,6 +105,8 @@ public final class NpcProfile {
         p.rctCooldownSeconds=root.contains("rctCooldownSeconds")
                 ?clamp(root.getInt("rctCooldownSeconds"),0,3600):20;
         p.domainOpen=root.getBoolean("domainOpen");
+        try{p.shrineModel=ShrineModel.valueOf(root.getString("shrineModel"));}
+        catch(IllegalArgumentException ignored){p.shrineModel=ShrineModel.NORMAL;}
         p.fatalRecovery=root.getBoolean("fatalRecovery");
         p.fatalRecoveryCharges=clamp(root.getInt("fatalCharges"),0,1000);
         float frac=root.getFloat("fatalHealth");

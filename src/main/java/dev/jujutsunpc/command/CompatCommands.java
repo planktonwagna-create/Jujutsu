@@ -45,6 +45,12 @@ public final class CompatCommands {
         npc.then(move);
         cast.then(npc);
         root.then(cast);
+        root.then(Commands.literal("version").executes(ctx -> {
+            ctx.getSource().sendSuccess(() -> Component.literal(
+                "Jujutsu NPC Compat v0.8 | editor: 6 top tabs | barrier: open/closed | Shrine: normal/mutated"
+            ),false);
+            return 1;
+        }));
         root.then(Commands.literal("inspect").then(Commands.argument("npc",EntityArgument.entity())
                 .executes(ctx -> inspect(ctx.getSource(),EntityArgument.getEntity(ctx,"npc")))));
         root.then(Commands.literal("animate").then(Commands.argument("npc",EntityArgument.entity())
@@ -104,6 +110,8 @@ public final class CompatCommands {
                 .append(" | idleHold=").append(profile.holdPositionWhenIdle)
                 .append(" | allowCombatDamage=").append(profile.allowCombatDamage)
                 .append(" | duel=").append(dev.jujutsunpc.game.NpcMeleeBridge.dueling(npc))
+                .append(" | shrineBarrier=").append(profile.domainOpen ? "open" : "closed")
+                .append(" | shrineAppearance=").append(profile.shrineModel.name())
                 .append(" | RCT active=").append(profile.rctActiveSeconds).append("s")
                 .append(" | RCT cooldown=").append(profile.rctCooldownSeconds).append("s")
                 .append(" | JJK cnt1=").append(Math.round(original.getDouble("cnt1")))

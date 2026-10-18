@@ -1,6 +1,7 @@
 package dev.jujutsunpc.compat;
 
 import dev.jujutsunpc.game.AbilityCatalog;
+import dev.jujutsunpc.config.NpcProfile;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.Mob;
@@ -47,10 +48,26 @@ public final class JujutsuProcedureBridge {
     public static boolean tryCast(ServerLevel level, LivingEntity caster,
                                   AbilityCatalog.Move move, Vec3 aim,
                                   LivingEntity explicitTarget, Boolean openShrine) {
+        return tryCast(level,caster,move,aim,explicitTarget,openShrine,null);
+    }
+
+    public static boolean tryCast(ServerLevel level, LivingEntity caster,
+                                  AbilityCatalog.Move move, Vec3 aim,
+                                  LivingEntity explicitTarget, Boolean openShrine,
+                                  NpcProfile.ShrineModel shrineModel) {
         if (aim == null || !Double.isFinite(aim.x) || !Double.isFinite(aim.y)
                 || !Double.isFinite(aim.z)) return false;
         if (caster.position().distanceToSqr(aim) > 128 * 128) return false;
         if (explicitTarget != null && (explicitTarget.level() != level || !explicitTarget.isAlive())) return false;
+        // Used only by the Malevolent Shrine appearance mixin, for the duration
+        // of this particular original procedure call.
+        final String shrineKey="jujutsunpc_shrineCasting";
+        String oldShrineValue=caster.getPersistentData().getString(shrineKey);
+        boolean hadShrineValue=caster.getPersistentData().contains(shrineKey,8);
+        boolean shrineCast=shrineModel!=null
+                && AbilityCatalog.isDomain(move)
+                && "MalevolentShrineProcedure".equals(move.procedure());
+        if(shrineCast)caster.getPersistentData().putString(shrineKey,shrineModel.name());
         Mob mob = caster instanceof Mob m ? m : null;
         LivingEntity oldTarget = mob != null ? mob.getTarget() : null;
         MobEffect sukunaEffect=null;
@@ -89,6 +106,10 @@ public final class JujutsuProcedureBridge {
             LOG.warn("JujutsuCraft procedure {} unavailable for NPC {}", move.procedure(), caster.getUUID(), e);
             return false;
         } finally {
+            if(shrineCast){
+                if(hadShrineValue)caster.getPersistentData().putString(shrineKey,oldShrineValue);
+                else caster.getPersistentData().remove(shrineKey);
+            }
             if(sukunaEffect!=null){
                 if(addedEffect)caster.removeEffect(sukunaEffect);
                 if(removedEffect && previousEffect!=null)

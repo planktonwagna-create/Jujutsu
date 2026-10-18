@@ -118,9 +118,11 @@ public final class NpcCombatEngine {
     }
     private static boolean original(ServerLevel level,LivingEntity npc,NpcProfile p,
                                     AbilityCatalog.Move move,Vec3 target,LivingEntity enemy){
+        boolean isShrine=AbilityCatalog.isDomain(move)
+                && NpcProfile.allowsOpenDomain(p.technique);
         return JujutsuProcedureBridge.tryCast(level,npc,move,target,enemy,
-                AbilityCatalog.isDomain(move) && NpcProfile.allowsOpenDomain(p.technique)
-                        ? p.domainOpen : null);
+                isShrine ? p.domainOpen : null,
+                isShrine ? p.shrineModel : null);
     }
     private static void resetJjkCounters(LivingEntity npc){
         CompoundTag jjk=npc.getPersistentData();
