@@ -3,98 +3,86 @@ package dev.jujutsunpc.game;
 import dev.jujutsunpc.compat.NpcCompatibility;
 import dev.jujutsunpc.config.NpcProfile;
 import dev.jujutsunpc.config.NpcStorage;
-import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraftforge.event.entity.living.LivingHurtEvent;
-import net.minecraftforge.event.entity.living.LivingDamageEvent;
-import java.util.UUID;
 
-/** Per-NPC, per-move damage and a targeted Kashimo charged-hit passive. */
+/** Move damage, targeted Kashimo lightning and backdash. No passive system. */
 public final class NpcCombatTuning {
-    private static final String PASSIVE_KEY="jjknpc_kashimo_marks";
+    /** The original RangeAttack procedure reads Damage from the caster's persistent data. */
     public static void onNativeRangeAttack(Entity raw) {
         if(!(raw instanceof LivingEntity npc) || !NpcCompatibility.isCompatible(npc)
                 || !NpcStorage.configured(npc))return;
         NpcProfile p=NpcStorage.profile(npc);
         CompoundTag tags=npc.getPersistentData();
         CompoundTag runtime=NpcStorage.runtime(npc,p);
-        if(tags.getBoolean("DomainAttack")){
+        if(tags.getBoolean("DomainAttack")) {
             if(p.domainSureHitDamage>=0)tags.putDouble("Damage",p.domainSureHitDamage);
             return;
         }
         String key=runtime.getString("currentMove");
-        if(!key.isEmpty()){
-            String itemKey=runtime.getString("currentItemMoveKey");
-            double damage=itemKey.isEmpty()?p.damage(key):p.itemDamage(itemKey);
-            if(damage>=0)tags.putDouble("Damage",damage);
-        }
-    }
-    public static void onHurt(LivingHurtEvent e) {
-        if(e.getAmount()<=0||e.getEntity().level().isClientSide)return;
-        Entity original=e.getSource().getEntity();
-        if(!(original instanceof LivingEntity attacker) || !NpcCompatibility.isCompatible(attacker)
-                || !NpcStorage.configured(attacker))return;
-        NpcProfile p=NpcStorage.profile(attacker);
-        CompoundTag runtime=NpcStorage.runtime(attacker,p);
-        String key=runtime.getString("currentMove");
-        if(!key.isEmpty() && e.getEntity().level().getGameTime()<=runtime.getLong("currentMoveUntil")
-                && !runtime.getBoolean("kashimoPassiveDamage")){
+        if(!key.isEmpty() && npc.level().getGameTime()<=runtime.getLong("currentMoveUntil")){
             String itemKey=runtime.getString("currentItemMoveKey");
             double amount=itemKey.isEmpty()?p.damage(key):p.itemDamage(itemKey);
-            if(amount>=0)e.setAmount((float)amount);
+            if(amount>=0)tags.putDouble("Damage",amount);
         }
     }
-    /** Marks a single target, and arcs lightning to THAT target after repeated attacks. */
-    public static void afterHit(LivingDamageEvent e) {
-        if(e.getAmount()<=0||!(e.getEntity().level() instanceof ServerLevel level))return;
-        Entity raw=e.getSource().getEntity();
-        if(!(raw instanceof LivingEntity npc)||!NpcCompatibility.isCompatible(npc)
+    public static void onHurt(LivingHurtEvent event) {
+        if(event.getAmount()<=0 || event.getEntity().level().isClientSide)return;
+        Entity source=event.getSource().getEntity();
+        if(!(source instanceof LivingEntity npc)||!NpcCompatibility.isCompatible(npc)
                 ||!NpcStorage.configured(npc))return;
         NpcProfile p=NpcStorage.profile(npc);
-        if(!p.techniquePassives||!"kashimo".equals(p.technique))return;
         CompoundTag runtime=NpcStorage.runtime(npc,p);
-        if(runtime.getBoolean("kashimoPassiveDamage"))return;
-        LivingEntity target=e.getEntity();
-        CompoundTag marks=target.getPersistentData().getCompound(PASSIVE_KEY);
-        String id=npc.getUUID().toString();
-        int total=marks.getInt(id)+1;
-        if(total<3){
-            marks.putInt(id,total);
-            target.getPersistentData().put(PASSIVE_KEY,marks);
-            return;
-        }
-        marks.remove(id);
-        target.getPersistentData().put(PASSIVE_KEY,marks);
-        if(level.getGameTime()<runtime.getLong("kashimoNextStrike"))return;
-        runtime.putLong("kashimoNextStrike",level.getGameTime()+40);
-        // No area damage or accidental damage to spectators/friendly bystanders.
-        level.sendParticles(ParticleTypes.ELECTRIC_SPARK,target.getX(),
-                target.getY()+target.getBbHeight()/2,target.getZ(),
-                28,0.35,0.7,0.35,0.1);
-        // Apply on the SAME registered hit, without a second hurt() call.
-        // A second call during LivingDamageEvent can be rejected by vanilla
-        // hit-invulnerability and would sometimes never deal extra damage.
-        e.setAmount(e.getAmount()+Math.max(1f,e.getAmount()));
+        String key=runtime.getString("currentMove");
+        if(key.isEmpty() || npc.level().getGameTime()>runtime.getLong("currentMoveUntil"))return;
+        String itemKey=runtime.getString("currentItemMoveKey");
+        double damage=itemKey.isEmpty()?p.damage(key):p.itemDamage(itemKey);
+        if(damage>=0)event.setAmount((float)damage);
     }
-    public static void backDash(ServerLevel level,LivingEntity npc,NpcProfile p,CompoundTag runtime) {
-        if(!p.backDash || !(npc instanceof Mob mob)||mob.getTarget()==null
+
+    /**
+     * Kashimo Lightning Strike: instead of stacking passive marks, strike the
+     * current locked-on LivingEntity directly. The spell never sweeps other
+     * entities and does not depend on a previous melee hit.
+     */
+    public static boolean lightningStrike(ServerLevel level,LivingEntity caster,LivingEntity target,
+                                         NpcProfile profile,AbilityCatalog.Move move) {
+        if(target==null || !target.isAlive() || target==caster || target.level()!=level
+                || caster.distanceToSqr(target)>128d*128d)return false;
+        float damage=(float)(profile.damage(move.key())>=0?profile.damage(move.key()):12d);
+        if(!(caster instanceof Mob attacker))return false;
+        double x=target.getX(),y=target.getY()+target.getBbHeight()/2,z=target.getZ();
+        level.sendParticles(ParticleTypes.ELECTRIC_SPARK,x,y,z,65,.38,.7,.38,.11);
+        level.sendParticles(ParticleTypes.END_ROD,x,target.getY()+target.getBbHeight(),z,24,.15,.5,.15,.09);
+        level.playSound(null,x,target.getY(),z,SoundEvents.LIGHTNING_BOLT_IMPACT,SoundSource.HOSTILE,1.5f,.9f);
+        // Locked target is the only entity damaged. Standard armor, events,
+        // defenses and Minecraft hurt immunity continue to apply.
+        target.hurt(caster.damageSources().mobAttack(attacker),damage);
+        return true;
+    }
+
+    public static void backDash(ServerLevel level,LivingEntity npc,NpcProfile profile,CompoundTag runtime){
+        if(!profile.backDash || !(npc instanceof Mob mob) || mob.getTarget()==null
                 || !mob.getTarget().isAlive())return;
         long now=level.getGameTime();
         if(now<runtime.getLong("backDashReady"))return;
         LivingEntity foe=mob.getTarget();
-        double distance=npc.distanceTo(foe);
-        if(distance>5 || distance<0.5)return;
-        var away=npc.position().subtract(foe.position()).multiply(1,0,1);
-        if(away.lengthSqr()<.0001)return;
-        // Leave vertical velocity unchanged, avoid dashing into unloaded terrain.
-        var next=npc.position().add(away.normalize().scale(1.7));
-        if(!level.hasChunkAt(net.minecraft.core.BlockPos.containing(next)))return;
-        npc.push(away.normalize().x*0.9,0.12,away.normalize().z*0.9);
-        runtime.putLong("backDashReady",now+CastPolicy.secondsToTicks(p.backDashCooldownSeconds));
+        double dist=npc.distanceTo(foe);
+        if(dist<0.5 || dist>5)return;
+        var dir=npc.position().subtract(foe.position()).multiply(1,0,1);
+        if(dir.lengthSqr()<.0001)return;
+        var destination=npc.position().add(dir.normalize().scale(1.7));
+        if(!level.hasChunkAt(BlockPos.containing(destination)))return;
+        npc.push(dir.normalize().x*.9,.12,dir.normalize().z*.9);
+        runtime.putLong("backDashReady",now+CastPolicy.secondsToTicks(profile.backDashCooldownSeconds));
         dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,"backstep");
     }
     private NpcCombatTuning(){}

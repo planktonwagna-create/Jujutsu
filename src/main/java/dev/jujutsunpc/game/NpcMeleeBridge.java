@@ -81,6 +81,16 @@ public final class NpcMeleeBridge {
         CompoundTag data = victim.getPersistentData();
         data.putLong(LAST_NPC_ATTACK, level.getGameTime());
         data.putUUID(LAST_NPC_ATTACKER, living.getUUID());
+        // Play a visible humanoid attack pose for successful ordinary NPC
+        // melee hits, without overwriting an active JJK technique animation.
+        if(NpcStorage.configured(living)){
+            CompoundTag state=NpcStorage.runtime(living,NpcStorage.profile(living));
+            long now=level.getGameTime();
+            if(!state.contains("activeJjkMove",10) && now>=state.getLong("nextMeleeAnimation")){
+                dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(living,"punch_right");
+                state.putLong("nextMeleeAnimation",now+10);
+            }
+        }
     }
 
     public static void tick(ServerLevel level, LivingEntity source, CompoundTag state) {

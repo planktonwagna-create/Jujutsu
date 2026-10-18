@@ -233,6 +233,21 @@ public final class NpcCombatEngine {
         if(pos==null||!Double.isFinite(pos.x)||!Double.isFinite(pos.y)||!Double.isFinite(pos.z)
                 || npc.position().distanceToSqr(pos)>128*128)return false;
         if(target!=null&&(!target.isAlive()||target.level()!=level))return false;
+        // Kashimo Lightning Strike is a LOCKED-ON sure-hit, not a charge-mark
+        // passive. It targets the live Mob#getTarget at the moment of use.
+        if("kashimo".equals(p.technique) && "LightningStrikeProcedure".equals(move.procedure())){
+            LivingEntity locked=(npc instanceof Mob mob && mob.getTarget()!=null
+                    && mob.getTarget().isAlive())?mob.getTarget():target;
+            if(locked==null || !locked.isAlive() || locked==npc)return false;
+            state.putString("currentMove",move.key());
+            state.putString("currentItemMoveKey","");
+            state.putLong("currentMoveUntil",now+2);
+            if(!NpcCombatTuning.lightningStrike(level,npc,locked,p,move))return false;
+            state.putLong("ready_"+readyKey,now+CastPolicy.secondsToTicks(p.cooldown(move.key())));
+            if(!manual)AutomaticCastLimiter.didBegin(level,now);
+            play(npc,move,false);
+            return true;
+        }
         int charge=!item && AbilityCatalog.supportsCharge(move)?p.charge(move.key()):0;
         boolean crouching=!item&&chooseCrouch(p,move,state);
         resetJjkCounters(npc);

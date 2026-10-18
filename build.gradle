@@ -3,7 +3,7 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
-version = '0.11.0-combat-expansion-test'
+version = '0.12.0-ui-lightning-test'
 group = 'dev.jujutsunpc'
 base { archivesName = 'jujutsu-npc-compat' }
 

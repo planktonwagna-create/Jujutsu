@@ -60,6 +60,20 @@ public final class NpcAnimationState {
         }
     }
 
+    private static boolean isCharging(String name){
+        return "charge1".equals(name)||"charge2".equals(name)||"energy_charge".equals(name);
+    }
+    /** v51 JSON contains 0.25s attacks AND 180-360s permanent poses.
+     * Normal attacks get a bounded display window; held-charge poses may remain
+     * until the release animation arrives (max configurable 120s + buffer).
+     */
+    private static double displaySeconds(Playback active,Animation animation){
+        return isCharging(active.animation()) ? 125d
+                : Math.max(0.8d,Math.min(1.3d,animation.lengthSeconds()));
+    }
+    private static double sampledTime(double elapsed,Animation animation){
+        return Math.max(0,Math.min(elapsed,Math.max(0,animation.lengthSeconds())));
+    }
     public static void apply(LivingEntity npc, HumanoidModel<?> model) {
         if (!NpcCompatibility.isCompatible(npc)) return;
         Playback active = ACTIVE.get(npc.getId());
@@ -67,9 +81,10 @@ public final class NpcAnimationState {
         Animation animation = load(active.animation());
         if (animation == null) { ACTIVE.remove(npc.getId()); return; }
         double time = (System.currentTimeMillis() - active.startedAtMs()) / 1000.0;
-        if (time > animation.lengthSeconds() || time < 0) {
+        if (time > displaySeconds(active,animation) || time < 0) {
             ACTIVE.remove(npc.getId()); return;
         }
+        time=sampledTime(time,animation);
         JsonObject bones = animation.bones();
         if (bones == null) return;
         applyBone(bones, "head", model.head, time);
@@ -92,18 +107,23 @@ public final class NpcAnimationState {
     }
 
     /** Easy NPC's own model manager can own limbs independently of PlayerModel. */
-    public static void applyParts(LivingEntity npc,ModelPart[] parts){
-        if(!NpcCompatibility.isCompatible(npc)||parts==null||parts.length!=6)return;
+    public static boolean applyParts(LivingEntity npc,ModelPart[] parts){
+        if(!NpcCompatibility.isCompatible(npc)||parts==null||parts.length!=6)return false;
         Playback active=ACTIVE.get(npc.getId());
-        if(active==null)return;
+        if(active==null)return false;
         Animation animation=load(active.animation());
-        if(animation==null)return;
+        if(animation==null)return false;
         double time=(System.currentTimeMillis()-active.startedAtMs())/1000.0;
-        if(time<0||time>animation.lengthSeconds())return;
+        if(time<0||time>displaySeconds(active,animation)){
+            ACTIVE.remove(npc.getId());
+            return false;
+        }
+        time=sampledTime(time,animation);
         JsonObject bones=animation.bones();
-        if(bones==null)return;
+        if(bones==null)return false;
         String[] keys={"head","body","right_arm","left_arm","right_leg","left_leg"};
         for(int i=0;i<keys.length;i++)if(parts[i]!=null)applyBone(bones,keys[i],parts[i],time);
+        return true;
     }
     private static void applyBone(JsonObject bones, String name, ModelPart part, double time) {
         if (!bones.has(name)) return;

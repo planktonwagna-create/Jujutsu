@@ -16,7 +16,6 @@ public final class NpcProfile {
     /** Absolute hit damage; absence (-1) keeps the original JJK value. */
     public Map<String,Double> moveDamage = new LinkedHashMap<>();
     public double domainSureHitDamage = -1;
-    public boolean techniquePassives = true;
     public boolean backDash = false;
     public int backDashCooldownSeconds = 8;
     public enum CrouchMode { REGULAR, CROUCHING, ALTERNATE;
@@ -110,7 +109,6 @@ public final class NpcProfile {
         root.putInt("rctCooldownSeconds",rctCooldownSeconds);
         root.putBoolean("domainOpen",domainOpen);
         root.putDouble("domainSureHitDamage",domainSureHitDamage);
-        root.putBoolean("techniquePassives",techniquePassives);
         root.putBoolean("backDash",backDash);
         root.putInt("backDashCooldownSeconds",backDashCooldownSeconds);
         root.putInt("domainHealthThreshold",domainHealthThreshold);
@@ -164,7 +162,6 @@ public final class NpcProfile {
         p.domainOpen=root.getBoolean("domainOpen");
         p.domainSureHitDamage=root.contains("domainSureHitDamage",6)
             ?finiteDamage(root.getDouble("domainSureHitDamage")):-1;
-        p.techniquePassives=!root.contains("techniquePassives")||root.getBoolean("techniquePassives");
         p.backDash=root.getBoolean("backDash");
         p.backDashCooldownSeconds=root.contains("backDashCooldownSeconds",3)
             ?clamp(root.getInt("backDashCooldownSeconds"),0,3600):8;

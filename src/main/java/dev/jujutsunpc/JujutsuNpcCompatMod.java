@@ -72,7 +72,6 @@ public final class JujutsuNpcCompatMod {
     @SubscribeEvent public void damage(net.minecraftforge.event.entity.living.LivingDamageEvent e) {
         NpcCombatEngine.onDamage(e);
         dev.jujutsunpc.game.NpcMeleeBridge.onDamage(e);
-        dev.jujutsunpc.game.NpcCombatTuning.afterHit(e);
     }
     @SubscribeEvent public void spawn(net.minecraftforge.event.entity.living.MobSpawnEvent.FinalizeSpawn e) { WorldRestrictions.preventNaturalJjkMobs(e); }
     @SubscribeEvent public void commands(RegisterCommandsEvent e) { CompatCommands.register(e.getDispatcher()); }
