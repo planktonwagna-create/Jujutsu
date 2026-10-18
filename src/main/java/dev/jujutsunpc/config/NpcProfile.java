@@ -25,6 +25,7 @@ public final class NpcProfile {
     public Map<String,CrouchMode> moveCrouches = new LinkedHashMap<>();
     public Map<String,Integer> itemCooldowns = new LinkedHashMap<>();
     public Map<String,Mode> itemMoveModes = new LinkedHashMap<>();
+    public Map<String,Double> itemMoveDamage = new LinkedHashMap<>();
     public EnumMap<Defence, Integer> defenceCooldowns = new EnumMap<>(Defence.class);
     public boolean domainOpen = false; // Shrine and Womb Profusion only in JJK v51.
     /** Maximum health percentage at which an automatically cast domain may begin. 100 = anytime. */
@@ -72,6 +73,11 @@ public final class NpcProfile {
     public int itemCooldown(String itemMove){return itemCooldowns.getOrDefault(itemMove,5);}
     public void setItemCooldown(String key,int seconds){itemCooldowns.put(key,clamp(seconds,0,3600));}
     public Mode itemMode(String key){return itemMoveModes.getOrDefault(key,Mode.DISABLED);}
+    public double itemDamage(String key){return itemMoveDamage.getOrDefault(key,-1d);}
+    public void setItemDamage(String key,double damage){
+        if(key.matches("[a-z0-9_:]{1,128}")&&Double.isFinite(damage))
+            itemMoveDamage.put(key,Math.max(0,Math.min(10000,damage)));
+    }
     public void setItemMode(String key,Mode mode){itemMoveModes.put(key,mode);}
 
     public void setCooldown(String move, int seconds) {
@@ -133,6 +139,9 @@ public final class NpcProfile {
         CompoundTag itemModes=new CompoundTag();
         itemMoveModes.forEach((key,value)->itemModes.putString(key,value.name()));
         root.put("itemMoveModes",itemModes);
+        CompoundTag itemDamageTag=new CompoundTag();
+        itemMoveDamage.forEach(itemDamageTag::putDouble);
+        root.put("itemMoveDamage",itemDamageTag);
         CompoundTag def=new CompoundTag();
         defences.forEach((id,value) -> def.putBoolean(id.name(),value));
         root.put("defences",def);
@@ -198,6 +207,9 @@ public final class NpcProfile {
             try{p.setItemMode(key,Mode.valueOf(itemModes.getString(key)));}
             catch(IllegalArgumentException ignored){}
         }
+        CompoundTag itemDamageTag=root.getCompound("itemMoveDamage");
+        for(String key:itemDamageTag.getAllKeys())
+            if(itemDamageTag.contains(key,6))p.setItemDamage(key,itemDamageTag.getDouble(key));
         CompoundTag def=root.getCompound("defences");
         for(Defence d:Defence.values())p.defences.put(d,def.getBoolean(d.name()));
         CompoundTag defCooldowns=root.getCompound("defenceCooldowns");

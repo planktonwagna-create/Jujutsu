@@ -26,8 +26,8 @@ public final class NpcEditorScreen extends Screen {
     private final int target;
     private final NpcProfile profile;
     private int page,moveIndex,defenceIndex,meleeIndex,itemIndex;
-    private boolean editingMoveDamage=false,editingDomainDamage=false,advancedCombat=false;
-    private EditBox moveCooldown,moveCharge,moveDamage,rctActive,rctCooldown,defenceCooldown,meleeCooldown,itemCooldown,domainHealth,domainDamage,dashCooldown;
+    private boolean editingMoveDamage=false,editingDomainDamage=false,advancedCombat=false,itemEditingDamage=false;
+    private EditBox moveCooldown,moveCharge,moveDamage,rctActive,rctCooldown,defenceCooldown,meleeCooldown,itemCooldown,itemDamage,domainHealth,domainDamage,dashCooldown;
     private String equipmentState="";
 
     public NpcEditorScreen(int target,NpcProfile profile){
@@ -117,6 +117,10 @@ public final class NpcEditorScreen extends Screen {
             String id=itemKey(item);
             profile.setItemCooldown(id,parse(itemCooldown,profile.itemCooldown(id),0,3600));
         }
+        if(item!=null&&itemDamage!=null){
+            String key=itemKey(item);
+            profile.setItemDamage(key,parse(itemDamage,(int)Math.max(0,profile.itemDamage(key)),0,10000));
+        }
     }
     private void action(int x,int y,int width,String name,Runnable callback){
         addRenderableWidget(Button.builder(Component.literal(name),b->{
@@ -130,7 +134,7 @@ public final class NpcEditorScreen extends Screen {
     @Override protected void init(){
         moveCooldown=null;moveCharge=null;rctActive=null;rctCooldown=null;
         defenceCooldown=null;meleeCooldown=null;itemCooldown=null;domainHealth=null;
-        moveDamage=null;domainDamage=null;dashCooldown=null;
+        moveDamage=null;domainDamage=null;dashCooldown=null;itemDamage=null;
         equipmentState=equipmentSignature();
         page=Math.min(page,tabCount()-1);
         int x=width/2-139;
@@ -228,9 +232,19 @@ public final class NpcEditorScreen extends Screen {
             if(move!=null){
                 pair(x,79,"< Previous Item Move",()->itemIndex--,"Next Item Move >",()->itemIndex++);
                 String id=itemKey(move);
-                wide(x,118,move.title()+": "+profile.itemMode(id),
+                wide(x,110,move.title()+": "+profile.itemMode(id),
                         ()->profile.setItemMode(id,profile.itemMode(id).next()));
-                itemCooldown=numeric(x,166,profile.itemCooldown(id),"Item cooldown seconds");
+                wide(x,140,itemEditingDamage?"Edit Item Cooldown":"Edit Item Damage",
+                        ()->itemEditingDamage=!itemEditingDamage);
+                if(itemEditingDamage){
+                    wide(x,167,profile.itemDamage(id)<0?"Damage: Native JJK":"Damage: Custom",
+                        ()->{if(profile.itemDamage(id)<0)profile.setItemDamage(id,10);
+                             else profile.itemMoveDamage.remove(id);});
+                    if(profile.itemDamage(id)>=0)
+                        itemDamage=numeric(x,196,(int)profile.itemDamage(id),"Item damage points");
+                }else{
+                    itemCooldown=numeric(x,187,profile.itemCooldown(id),"Item cooldown seconds");
+                }
             }
         }
         addRenderableWidget(Button.builder(Component.literal("Save NPC Settings"),b->{

@@ -32,6 +32,7 @@ public final class NpcCombatEngine {
         tickRct(npc,profile,state,now);
         // The v0.6 melee fix must remain available even while a JJK move is charging.
         NpcMeleeBridge.tick(level,npc,state);
+        NpcCombatTuning.backDash(level,npc,profile,state);
         if(state.contains(ACTIVE,10)){
             advance(level,npc,profile,state,now);
             return;
@@ -120,6 +121,7 @@ public final class NpcCombatEngine {
     }
     private static void finish(NpcProfile p,CompoundTag state,CompoundTag active,long now) {
         state.remove(ACTIVE);
+        state.putLong("currentMoveUntil",now+20);
         String key=active.getString("cooldownKey");
         if(!key.isEmpty()){
             int seconds=active.getBoolean("item")
@@ -143,6 +145,11 @@ public final class NpcCombatEngine {
                 && (("shrine".equals(p.technique) && "MalevolentShrineProcedure".equals(move.procedure()))
                  || ("spirits".equals(p.technique) && "WombProfusionProcedure".equals(move.procedure())));
         boolean shrine=openDomain && "shrine".equals(p.technique);
+        CompoundTag current=NpcStorage.runtime(npc,p);
+        current.putString("currentMove",move.key());
+        current.putString("currentItemMoveKey",ItemMoveCatalog.available(npc,move)
+                ?ItemMoveCatalog.key(npc,move):"");
+        current.putLong("currentMoveUntil",level.getGameTime()+30);
         return JujutsuProcedureBridge.tryCast(level,npc,move,target,enemy,
                 openDomain?p.domainOpen:null,shrine?p.shrineModel:null,pressed,crouching);
     }

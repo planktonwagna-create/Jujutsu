@@ -28,7 +28,8 @@ public final class NpcCombatTuning {
         }
         String key=runtime.getString("currentMove");
         if(!key.isEmpty()){
-            double damage=p.damage(key);
+            String itemKey=runtime.getString("currentItemMoveKey");
+            double damage=itemKey.isEmpty()?p.damage(key):p.itemDamage(itemKey);
             if(damage>=0)tags.putDouble("Damage",damage);
         }
     }
@@ -42,7 +43,8 @@ public final class NpcCombatTuning {
         String key=runtime.getString("currentMove");
         if(!key.isEmpty() && e.getEntity().level().getGameTime()<=runtime.getLong("currentMoveUntil")
                 && !runtime.getBoolean("kashimoPassiveDamage")){
-            double amount=p.damage(key);
+            String itemKey=runtime.getString("currentItemMoveKey");
+            double amount=itemKey.isEmpty()?p.damage(key):p.itemDamage(itemKey);
             if(amount>=0)e.setAmount((float)amount);
         }
     }

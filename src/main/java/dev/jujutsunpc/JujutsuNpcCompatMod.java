@@ -7,6 +7,8 @@ import dev.jujutsunpc.network.CompatNetwork;
 import dev.jujutsunpc.command.CompatCommands;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.CreativeModeTabs;
+import net.minecraftforge.event.BuildCreativeModeTabContentsEvent;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraftforge.common.MinecraftForge;
@@ -47,6 +49,11 @@ public final class JujutsuNpcCompatMod {
 
     public JujutsuNpcCompatMod() {
         ITEMS.register(FMLJavaModLoadingContext.get().getModEventBus());
+        FMLJavaModLoadingContext.get().getModEventBus().addListener(
+            (BuildCreativeModeTabContentsEvent event) -> {
+                if(event.getTabKey().equals(CreativeModeTabs.COMBAT))
+                    event.accept(GREY_KASHIMO_HAIR.get());
+            });
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SERVER_CONFIG);
         CompatNetwork.init();
         MinecraftForge.EVENT_BUS.register(this);
