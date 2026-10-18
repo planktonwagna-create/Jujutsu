@@ -53,8 +53,8 @@ public final class NpcCombatEngine {
                 .stream().filter(AbilityCatalog::isDomain).findFirst().orElse(null);
         if(domain!=null && distance<=domain.optimalMaxRange()
                 && CastPolicy.canCast(profile.mode(domain.key()),false,now,state.getLong("ready_"+domain.key()))
-                && (threatened || npc.getHealth()<=npc.getMaxHealth()*0.65f
-                    || (state.contains("combatStarted") && now-state.getLong("combatStarted")>=160))) {
+                // 100% = eligible whenever cooldown allows. 30% = requires <=30% HP.
+                && npc.getHealth()*100.0 <= npc.getMaxHealth()*profile.domainHealthThreshold) {
             if(cast(level,npc,profile,domain,target.getBoundingBox().getCenter(),target,false))return;
         }
         if(threatened){
@@ -136,11 +136,12 @@ public final class NpcCombatEngine {
     private static boolean original(ServerLevel level,LivingEntity npc,NpcProfile p,
                                     AbilityCatalog.Move move,Vec3 target,LivingEntity enemy,
                                     boolean pressed,boolean crouching) {
-        boolean shrine=AbilityCatalog.isDomain(move)
-                && "MalevolentShrineProcedure".equals(move.procedure())
-                && NpcProfile.allowsOpenDomain(p.technique);
+        boolean openDomain=AbilityCatalog.isDomain(move)
+                && (("shrine".equals(p.technique) && "MalevolentShrineProcedure".equals(move.procedure()))
+                 || ("spirits".equals(p.technique) && "WombProfusionProcedure".equals(move.procedure())));
+        boolean shrine=openDomain && "shrine".equals(p.technique);
         return JujutsuProcedureBridge.tryCast(level,npc,move,target,enemy,
-                shrine?p.domainOpen:null,shrine?p.shrineModel:null,pressed,crouching);
+                openDomain?p.domainOpen:null,shrine?p.shrineModel:null,pressed,crouching);
     }
     private static void resetJjkCounters(LivingEntity npc){
         CompoundTag jjk=npc.getPersistentData();
@@ -180,6 +181,7 @@ public final class NpcCombatEngine {
         if(active.getBoolean("holding") && !pressing){
             active.putBoolean("holding",false);
             active.putInt("remaining",totalTicks(move));
+            play(npc,move,false);
         }
         if(!original(level,npc,p,move,aim(active,target),target,
                 pressing,active.getBoolean("crouching"))){
@@ -194,8 +196,8 @@ public final class NpcCombatEngine {
         }
         active.putLong("lastAdvanced",now);
     }
-    private static void play(LivingEntity npc,AbilityCatalog.Move move) {
-        String anim=AbilityCatalog.originalAnimation(move.key());
+    private static void play(LivingEntity npc,AbilityCatalog.Move move,boolean charging) {
+        String anim=AbilityCatalog.animationFor(move,charging);
         if(!anim.isEmpty())dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,anim);
     }
     public static boolean cast(ServerLevel level,LivingEntity npc,NpcProfile p,
@@ -243,7 +245,7 @@ public final class NpcCombatEngine {
         active.putDouble("x",pos.x);active.putDouble("y",pos.y);active.putDouble("z",pos.z);
         if(target!=null)active.putUUID("target",target.getUUID());
         state.put(ACTIVE,active);
-        play(npc,move);
+        play(npc,move,charge>0);
         LOG.info("JJK NPC {} began {} pressed for {} ticks, crouching={} item={}",
                 npc.getUUID(),move.key(),Math.max(1,charge*20),crouching,item);
         return true;

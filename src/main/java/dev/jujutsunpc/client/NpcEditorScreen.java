@@ -26,11 +26,11 @@ public final class NpcEditorScreen extends Screen {
     private final int target;
     private final NpcProfile profile;
     private int page,moveIndex,defenceIndex,meleeIndex,itemIndex;
-    private EditBox moveCooldown,moveCharge,rctActive,rctCooldown,defenceCooldown,meleeCooldown,itemCooldown;
+    private EditBox moveCooldown,moveCharge,rctActive,rctCooldown,defenceCooldown,meleeCooldown,itemCooldown,domainHealth;
     private String equipmentState="";
 
     public NpcEditorScreen(int target,NpcProfile profile){
-        super(Component.literal("Jujutsu NPC Editor v0.9"));
+        super(Component.literal("Jujutsu NPC Editor v0.10"));
         this.target=target;this.profile=profile;
     }
     private static int bounded(int x,int min,int max){return Math.max(min,Math.min(max,x));}
@@ -100,6 +100,8 @@ public final class NpcEditorScreen extends Screen {
                 parse(rctCooldown,profile.rctCooldownSeconds,0,3600);
         if(defenceCooldown!=null)profile.setDefenceCooldown(selectedDefence(),
                 parse(defenceCooldown,profile.defenceCooldown(selectedDefence()),0,3600));
+        if(domainHealth!=null)profile.domainHealthThreshold=
+                parse(domainHealth,profile.domainHealthThreshold,1,100);
         AbilityCatalog.Move basic=selectedBasic();
         if(basic!=null&&meleeCooldown!=null)profile.setCooldown(basic.key(),
                 parse(meleeCooldown,profile.cooldown(basic.key()),0,3600));
@@ -120,7 +122,7 @@ public final class NpcEditorScreen extends Screen {
     }
     @Override protected void init(){
         moveCooldown=null;moveCharge=null;rctActive=null;rctCooldown=null;
-        defenceCooldown=null;meleeCooldown=null;itemCooldown=null;
+        defenceCooldown=null;meleeCooldown=null;itemCooldown=null;domainHealth=null;
         equipmentState=equipmentSignature();
         page=Math.min(page,tabCount()-1);
         int x=width/2-139;
@@ -160,12 +162,16 @@ public final class NpcEditorScreen extends Screen {
                     ()->profile.defences.put(choice,!profile.defences.getOrDefault(choice,false)));
             defenceCooldown=numeric(x,169,profile.defenceCooldown(choice),"Defense cooldown seconds");
         }else if(page==4){
+            // Domain threshold applies to ALL domains, not just Shrine.
+            domainHealth=numeric(x,119,profile.domainHealthThreshold,"Domain health threshold %");
             if(NpcProfile.allowsOpenDomain(profile.technique)){
-                wide(x,86,"Barrier: "+(profile.domainOpen?"OPEN":"CLOSED"),
+                wide(x,152,"Barrier: "+(profile.domainOpen?"OPEN":"CLOSED"),
                         ()->profile.domainOpen=!profile.domainOpen);
-                wide(x,119,"Shrine Model: "+profile.shrineModel,
+            }
+            if("shrine".equals(profile.technique)){
+                wide(x,182,"Shrine Model: "+profile.shrineModel,
                         ()->profile.shrineModel=profile.shrineModel.next());
-            }else wide(x,90,"Shrine-specific options only",()->page=0);
+            }
         }else if(page==5){
             wide(x,78,"Automatic combat: "+profile.autoCombat,()->profile.autoCombat=!profile.autoCombat);
             wide(x,104,"Hold after fighting: "+profile.holdPositionWhenIdle,
@@ -245,8 +251,13 @@ public final class NpcEditorScreen extends Screen {
             if(selectedDefence()==NpcProfile.Defence.HOLLOW_WICKER_BASKET)
                 graphics.drawCenteredString(font,"Hollow Wicker Basket is not implemented",width/2,198,0xFF8888);
         }else if(page==4){
-            graphics.drawCenteredString(font,"Barrier and Shrine appearance are separate.",
-                    width/2,160,0xAAAAAA);
+            graphics.drawCenteredString(font,"Domain: at or below this health %",width/2,104,0xAAAAAA);
+            graphics.drawCenteredString(font,"100% = always eligible within move cooldown",width/2,90,0xAAAAAA);
+            if("spirits".equals(profile.technique))
+                graphics.drawCenteredString(font,"Womb Profusion supports open/closed",width/2,191,0xBBBBBB);
+            if("shrine".equals(profile.technique))
+                graphics.drawCenteredString(font,"Shrine appearance and barrier are independent",
+                        width/2,213,0xBBBBBB);
         }else if(page==6 && selectedBasic()!=null){
             graphics.drawString(font,"Cooldown seconds for "+selectedBasic().title(),x,152,0xAAAAAA);
         }else if(page==7 && selectedItem()!=null){
