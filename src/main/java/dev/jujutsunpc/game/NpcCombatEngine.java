@@ -101,6 +101,9 @@ public final class NpcCombatEngine {
         if(AbilityCatalog.isDomain(move))return 95;
         if(AbilityCatalog.supportsCharge(move))return 40;
         return switch(move.key()){
+            case "attack" -> 15;
+            case "knockback" -> 20;
+            case "barrage" -> 40;
             case "blue","red","dismantle" -> 32;
             case "purple" -> 65;
             case "cleave" -> 36;
