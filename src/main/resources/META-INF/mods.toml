@@ -3,7 +3,7 @@ loaderVersion="[47,)"
 license="All Rights Reserved (addon source); upstream mods retain their own licenses"
 [[mods]]
 modId="jujutsunpccompat"
-version="0.12.0-ui-lightning-test"
+version="0.13.0-fullbody-animation-test"
 displayName="JujutsuCraft NPC Compatibility (Development)"
 authors="Independent compatibility project"
 description='''Development build. Connects JujutsuCraft, Easy NPC and CustomNPCs. Not feature-complete.'''

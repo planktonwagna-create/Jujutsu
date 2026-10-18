@@ -17,6 +17,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.WeakHashMap;
 
 /**
  * Client-only humanoid pose adapter. Reads the REAL v51 animation JSON bundled in
@@ -27,7 +28,11 @@ import java.util.Map;
 public final class NpcAnimationState {
     private static final Logger LOG = LogUtils.getLogger();
     private record Playback(String animation, long startedAtMs) {}
-    private record Animation(double lengthSeconds, JsonObject bones) {}
+    private record Animation(double lengthSeconds,double lastKeyframeSeconds,JsonObject bones) {}
+    private record PartOffset(float baseX,float baseY,float baseZ,
+                              float changedX,float changedY,float changedZ) {}
+    /** Avoid accumulating translations if an NPC renderer doesn't reset pivots each frame. */
+    private static final Map<ModelPart,PartOffset> LAST_POSITIONS=new WeakHashMap<>();
     private static final Map<Integer, Playback> ACTIVE = new HashMap<>();
     private static final Map<String, Animation> CACHE = new HashMap<>();
 
@@ -49,8 +54,10 @@ public final class NpcAnimationState {
                 if (animations == null || animations.size() == 0) return null;
                 JsonObject anim = animations.has(name) ? animations.getAsJsonObject(name)
                         : animations.entrySet().iterator().next().getValue().getAsJsonObject();
-                Animation parsed = new Animation(anim.get("animation_length").getAsDouble(),
-                        anim.getAsJsonObject("bones"));
+                JsonObject bones=anim.getAsJsonObject("bones");
+                Animation parsed = new Animation(anim.has("animation_length")
+                        ?anim.get("animation_length").getAsDouble():0.7,
+                        findFinalKeyframe(bones),bones);
                 CACHE.put(name, parsed);
                 return parsed;
             }
@@ -60,42 +67,78 @@ public final class NpcAnimationState {
         }
     }
 
+    private static double findFinalKeyframe(JsonObject bones){
+        if(bones==null)return 0;
+        double end=0;
+        for(var entry:bones.entrySet()){
+            JsonObject bone=entry.getValue().isJsonObject()?entry.getValue().getAsJsonObject():null;
+            if(bone==null)continue;
+            for(String property:new String[]{"rotation","position"}){
+                JsonElement data=bone.get(property);
+                if(data==null||!data.isJsonObject())continue;
+                for(var sample:data.getAsJsonObject().entrySet()){
+                    try{end=Math.max(end,Double.parseDouble(sample.getKey()));}
+                    catch(NumberFormatException ignored){}
+                }
+            }
+        }
+        return Math.min(8,end);
+    }
     private static boolean isCharging(String name){
         return "charge1".equals(name)||"charge2".equals(name)||"energy_charge".equals(name);
     }
-    /** v51 JSON contains 0.25s attacks AND 180-360s permanent poses.
-     * Normal attacks get a bounded display window; held-charge poses may remain
-     * until the release animation arrives (max configurable 120s + buffer).
+    /** Source files can claim 180s while holding their final attack keyframe
+     * at 0.125s. A clip's real motion is its keyframe timeline, not that claim.
      */
-    private static double displaySeconds(Playback active,Animation animation){
-        return isCharging(active.animation()) ? 125d
-                : Math.max(0.8d,Math.min(1.3d,animation.lengthSeconds()));
+    private static double displaySeconds(Playback playback,Animation animation){
+        if(isCharging(playback.animation()))return 125d;
+        double motion=animation.lastKeyframeSeconds();
+        return motion<=0 ? 0.62d : Math.max(0.63d,Math.min(2.4d,motion*1.20d+0.25d));
     }
-    private static double sampledTime(double elapsed,Animation animation){
-        return Math.max(0,Math.min(elapsed,Math.max(0,animation.lengthSeconds())));
+    private static double sampleTime(Playback playback,Animation animation,double elapsed){
+        double end=animation.lastKeyframeSeconds();
+        if(end<=0)return 0;
+        if(isCharging(playback.animation()))return Math.min(end,elapsed);
+        double progress=Math.max(0,Math.min(1,elapsed/(displaySeconds(playback,animation)*0.79d)));
+        // Smooth step eases acceleration and avoids an abrupt transition.
+        double smooth=progress*progress*(3-2*progress);
+        return smooth*end;
     }
-    public static void apply(LivingEntity npc, HumanoidModel<?> model) {
-        if (!NpcCompatibility.isCompatible(npc)) return;
-        Playback active = ACTIVE.get(npc.getId());
-        if (active == null) return;
-        Animation animation = load(active.animation());
-        if (animation == null) { ACTIVE.remove(npc.getId()); return; }
-        double time = (System.currentTimeMillis() - active.startedAtMs()) / 1000.0;
-        if (time > displaySeconds(active,animation) || time < 0) {
-            ACTIVE.remove(npc.getId()); return;
+    private static float weight(Playback playback,Animation animation,double elapsed){
+        float into=(float)Math.min(1,Math.max(0,elapsed/0.10));
+        if(isCharging(playback.animation()))return into;
+        double remain=displaySeconds(playback,animation)-elapsed;
+        return into*(float)Math.min(1,Math.max(0,remain/0.23d));
+    }
+    private static void resetLastPosition(ModelPart part){
+        if(part==null)return;
+        PartOffset previous=LAST_POSITIONS.remove(part);
+        if(previous==null)return;
+        // Vanilla or EasyNPC may have reset/customized the base pose since
+        // our previous frame. Restore only when our previous translation remains.
+        if(Math.abs(part.x-previous.changedX())<0.001f
+                && Math.abs(part.y-previous.changedY())<0.001f
+                && Math.abs(part.z-previous.changedZ())<0.001f){
+            part.x=previous.baseX();part.y=previous.baseY();part.z=previous.baseZ();
         }
-        time=sampledTime(time,animation);
-        JsonObject bones = animation.bones();
-        if (bones == null) return;
-        applyBone(bones, "head", model.head, time);
-        applyBone(bones, "torso", model.body, time);
-        applyBone(bones, "body", model.body, time);
-        applyBone(bones, "right_arm", model.rightArm, time);
-        applyBone(bones, "left_arm", model.leftArm, time);
-        applyBone(bones, "right_leg", model.rightLeg, time);
-        applyBone(bones, "left_leg", model.leftLeg, time);
-        // PlayerModel has separate overlay geometry. Without copying rotations
-        // its sleeves and jacket keep their idle poses and visually mask animations.
+    }
+
+    public static void apply(LivingEntity npc,HumanoidModel<?> model){
+        if(!NpcCompatibility.isCompatible(npc))return;
+        ModelPart[] limbs={model.head,model.body,model.rightArm,model.leftArm,
+                model.rightLeg,model.leftLeg};
+        for(ModelPart part:limbs)resetLastPosition(part);
+        Playback playing=ACTIVE.get(npc.getId());
+        if(playing==null)return;
+        Animation animation=load(playing.animation());
+        if(animation==null){ACTIVE.remove(npc.getId());return;}
+        double elapsed=(System.currentTimeMillis()-playing.startedAtMs())/1000d;
+        if(elapsed<0||elapsed>displaySeconds(playing,animation)){
+            ACTIVE.remove(npc.getId());return;
+        }
+        float alpha=weight(playing,animation,elapsed);
+        double time=sampleTime(playing,animation,elapsed);
+        applyComposite(animation.bones(),limbs,time,alpha);
         if(model instanceof PlayerModel<?> player){
             player.hat.copyFrom(player.head);
             player.jacket.copyFrom(player.body);
@@ -106,34 +149,82 @@ public final class NpcAnimationState {
         }
     }
 
-    /** Easy NPC's own model manager can own limbs independently of PlayerModel. */
-    public static boolean applyParts(LivingEntity npc,ModelPart[] parts){
-        if(!NpcCompatibility.isCompatible(npc)||parts==null||parts.length!=6)return false;
-        Playback active=ACTIVE.get(npc.getId());
-        if(active==null)return false;
-        Animation animation=load(active.animation());
-        if(animation==null)return false;
-        double time=(System.currentTimeMillis()-active.startedAtMs())/1000.0;
-        if(time<0||time>displaySeconds(active,animation)){
-            ACTIVE.remove(npc.getId());
-            return false;
+    /** Optional Easy NPC humanoid pose adapter. True only with active animation. */
+    public static boolean applyParts(LivingEntity npc,ModelPart[] limbs){
+        if(!NpcCompatibility.isCompatible(npc)||limbs==null||limbs.length!=6)return false;
+        for(ModelPart part:limbs)resetLastPosition(part);
+        Playback playing=ACTIVE.get(npc.getId());
+        if(playing==null)return false;
+        Animation animation=load(playing.animation());
+        if(animation==null){ACTIVE.remove(npc.getId());return false;}
+        double elapsed=(System.currentTimeMillis()-playing.startedAtMs())/1000d;
+        if(elapsed<0||elapsed>displaySeconds(playing,animation)){
+            ACTIVE.remove(npc.getId());return false;
         }
-        time=sampledTime(time,animation);
-        JsonObject bones=animation.bones();
-        if(bones==null)return false;
-        String[] keys={"head","body","right_arm","left_arm","right_leg","left_leg"};
-        for(int i=0;i<keys.length;i++)if(parts[i]!=null)applyBone(bones,keys[i],parts[i],time);
+        applyComposite(animation.bones(),limbs,sampleTime(playing,animation,elapsed),
+                weight(playing,animation,elapsed));
         return true;
     }
-    private static void applyBone(JsonObject bones, String name, ModelPart part, double time) {
-        if (!bones.has(name)) return;
-        JsonObject bone = bones.getAsJsonObject(name);
-        if (!bone.has("rotation")) return;
-        float[] rot = sampleRotation(bone.get("rotation"), time);
-        if (rot == null) return;
-        part.xRot = (float)Math.toRadians(rot[0]);
-        part.yRot = (float)Math.toRadians(rot[1]);
-        part.zRot = (float)Math.toRadians(rot[2]);
+
+    /**
+     * GeckoLib's 'body' is a root transform and 'torso' is the upper-body
+     * transform. Minecraft's HumanoidModel has one body part, so COMBINE
+     * them instead of applying 'body' last and erasing the torso action.
+     */
+    private static void applyComposite(JsonObject bones,ModelPart[] limbs,double t,float alpha){
+        if(bones==null||alpha<=0)return;
+        applyBone(bones,"head",null,limbs[0],t,alpha);
+        applyBone(bones,"body","torso",limbs[1],t,alpha);
+        applyBone(bones,"right_arm",null,limbs[2],t,alpha);
+        applyBone(bones,"left_arm",null,limbs[3],t,alpha);
+        applyBone(bones,"right_leg",null,limbs[4],t,alpha);
+        applyBone(bones,"left_leg",null,limbs[5],t,alpha);
+    }
+
+    private static float[] vector(JsonObject bones,String name,String property,double time){
+        if(name==null||!bones.has(name)||!bones.get(name).isJsonObject())return null;
+        JsonObject bone=bones.getAsJsonObject(name);
+        if(!bone.has(property))return null;
+        return sampleRotation(bone.get(property),time);
+    }
+    private static float[] sum(float[] primary,float[] secondary){
+        if(primary==null)return secondary;
+        if(secondary==null)return primary;
+        return new float[]{primary[0]+secondary[0],primary[1]+secondary[1],
+                           primary[2]+secondary[2]};
+    }
+    private static float interp(float start,float end,float amount){
+        return start+(end-start)*amount;
+    }
+    private static float displacement(float[] current,float[] base,int index){
+        return current==null?0:(current[index]-(base==null?0:base[index]));
+    }
+    private static void applyBone(JsonObject bones,String name,String secondary,ModelPart part,
+                                  double time,float weight){
+        if(part==null)return;
+        float[] rotation=sum(vector(bones,name,"rotation",time),
+                             vector(bones,secondary,"rotation",time));
+        if(rotation!=null){
+            // Respect an NPC's normal idle/walking pose during the blend-in/out.
+            part.xRot=interp(part.xRot,(float)Math.toRadians(rotation[0]),weight);
+            part.yRot=interp(part.yRot,(float)Math.toRadians(rotation[1]),weight);
+            part.zRot=interp(part.zRot,(float)Math.toRadians(rotation[2]),weight);
+        }
+        float[] now=sum(vector(bones,name,"position",time),
+                        vector(bones,secondary,"position",time));
+        if(now==null)return;
+        float[] start=sum(vector(bones,name,"position",0),
+                          vector(bones,secondary,"position",0));
+        // Use RELATIVE movement so GeckoLib's bone-pivot offsets at frame 0
+        // don't shift the whole NPC model (e.g. permanent 4px head drift).
+        float dx=Math.max(-8,Math.min(8,displacement(now,start,0)))*weight;
+        float dy=Math.max(-8,Math.min(8,displacement(now,start,1)))*weight;
+        float dz=Math.max(-8,Math.min(8,displacement(now,start,2)))*weight;
+        float bx=part.x,by=part.y,bz=part.z;
+        part.x=bx+dx;
+        part.y=by-dy; // Gecko positions Y upward; Minecraft ModelPart Y downward
+        part.z=bz+dz;
+        LAST_POSITIONS.put(part,new PartOffset(bx,by,bz,part.x,part.y,part.z));
     }
 
     /** Handles vector, raw [x,y,z] and timestamp-keyed vector objects. */

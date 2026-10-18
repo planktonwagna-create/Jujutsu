@@ -48,7 +48,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.12 | reliable poses | clean UI | target-locked Kashimo lightning"
+                "Jujutsu NPC Compat v0.13 | full-body native poses with position and timing"
             ),false);
             return 1;
         }));
