@@ -116,7 +116,6 @@ public final class CompatCommands {
                 .append(" | duel=").append(dev.jujutsunpc.game.NpcMeleeBridge.dueling(npc))
                 .append(" | domainHealthThreshold=").append(profile.domainHealthThreshold).append("%")
                 .append(" | sureHitDamage=").append(profile.domainSureHitDamage<0?"native":profile.domainSureHitDamage)
-                .append(" | passives=").append(profile.techniquePassives)
                 .append(" | backdash=").append(profile.backDash)
                 .append(" | backdashCooldown=").append(profile.backDashCooldownSeconds).append("s")
                 .append(" | domainBarrier=").append(profile.domainOpen ? "open" : "closed")
