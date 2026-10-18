@@ -3,7 +3,7 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
-version = '0.10.0-animation-domain-test'
+version = '0.11.0-combat-expansion-test'
 group = 'dev.jujutsunpc'
 base { archivesName = 'jujutsu-npc-compat' }
 

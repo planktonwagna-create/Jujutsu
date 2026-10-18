@@ -98,6 +98,9 @@ public final class NpcCombatEngine {
     }
 
     private static int totalTicks(AbilityCatalog.Move move) {
+        // Projection Sorcery's original barrier and owner-effect stages need
+        // more time than the other v51 domains in our NPC caster path.
+        if(AbilityCatalog.isDomain(move)&&"TimeCellMoonPalaceProcedure".equals(move.procedure()))return 190;
         if(AbilityCatalog.isDomain(move))return 95;
         if(AbilityCatalog.supportsCharge(move))return 40;
         return switch(move.key()){

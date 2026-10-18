@@ -48,7 +48,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.10 | animations | Womb Profusion barrier | domain health gate | right-click weapons"
+                "Jujutsu NPC Compat v0.11 | damage/sure hits | Easy NPC poses | Kashimo passive | backdash | grey hair"
             ),false);
             return 1;
         }));
@@ -115,6 +115,10 @@ public final class CompatCommands {
                 .append(" | allowCombatDamage=").append(profile.allowCombatDamage)
                 .append(" | duel=").append(dev.jujutsunpc.game.NpcMeleeBridge.dueling(npc))
                 .append(" | domainHealthThreshold=").append(profile.domainHealthThreshold).append("%")
+                .append(" | sureHitDamage=").append(profile.domainSureHitDamage<0?"native":profile.domainSureHitDamage)
+                .append(" | passives=").append(profile.techniquePassives)
+                .append(" | backdash=").append(profile.backDash)
+                .append(" | backdashCooldown=").append(profile.backDashCooldownSeconds).append("s")
                 .append(" | domainBarrier=").append(profile.domainOpen ? "open" : "closed")
                 .append(" | shrineAppearance=").append(profile.shrineModel.name())
                 .append(" | RCT active=").append(profile.rctActiveSeconds).append("s")

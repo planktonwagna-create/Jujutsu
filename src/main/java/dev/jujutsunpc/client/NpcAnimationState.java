@@ -91,6 +91,20 @@ public final class NpcAnimationState {
         }
     }
 
+    /** Easy NPC's own model manager can own limbs independently of PlayerModel. */
+    public static void applyParts(LivingEntity npc,ModelPart[] parts){
+        if(!NpcCompatibility.isCompatible(npc)||parts==null||parts.length!=6)return;
+        Playback active=ACTIVE.get(npc.getId());
+        if(active==null)return;
+        Animation animation=load(active.animation());
+        if(animation==null)return;
+        double time=(System.currentTimeMillis()-active.startedAtMs())/1000.0;
+        if(time<0||time>animation.lengthSeconds())return;
+        JsonObject bones=animation.bones();
+        if(bones==null)return;
+        String[] keys={"head","body","right_arm","left_arm","right_leg","left_leg"};
+        for(int i=0;i<keys.length;i++)if(parts[i]!=null)applyBone(bones,keys[i],parts[i],time);
+    }
     private static void applyBone(JsonObject bones, String name, ModelPart part, double time) {
         if (!bones.has(name)) return;
         JsonObject bone = bones.getAsJsonObject(name);

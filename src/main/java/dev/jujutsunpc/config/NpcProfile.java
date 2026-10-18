@@ -13,6 +13,12 @@ public final class NpcProfile {
     public Map<String, Mode> moveModes = new LinkedHashMap<>();
     public Map<String, Integer> moveCooldowns = new LinkedHashMap<>();
     public Map<String, Integer> moveCharges = new LinkedHashMap<>();
+    /** Absolute hit damage; absence (-1) keeps the original JJK value. */
+    public Map<String,Double> moveDamage = new LinkedHashMap<>();
+    public double domainSureHitDamage = -1;
+    public boolean techniquePassives = true;
+    public boolean backDash = false;
+    public int backDashCooldownSeconds = 8;
     public enum CrouchMode { REGULAR, CROUCHING, ALTERNATE;
         public CrouchMode next(){return values()[(ordinal()+1)%values().length];}
     }
@@ -43,6 +49,7 @@ public final class NpcProfile {
         moveModes.clear();
         moveCooldowns.clear();
         moveCharges.clear();
+        moveDamage.clear();
         moveCrouches.clear();
     }
     public void setMoveMode(String key, Mode mode) {
@@ -53,6 +60,11 @@ public final class NpcProfile {
                 .map(m -> Math.max(1,(m.cooldownTicks()+19)/20)).orElse(5));
     }
     public int charge(String move) { return moveCharges.getOrDefault(move,0); }
+    public double damage(String key){return moveDamage.getOrDefault(key,-1d);}
+    public void setDamage(String key,double value){
+        if(AbilityCatalog.move(technique,key).isPresent() && Double.isFinite(value))
+            moveDamage.put(key,Math.max(0,Math.min(10000,value)));
+    }
     public CrouchMode crouch(String move){return moveCrouches.getOrDefault(move,CrouchMode.REGULAR);}
     public void setCrouch(String move,CrouchMode mode){
         if(AbilityCatalog.move(technique,move).isPresent())moveCrouches.put(move,mode);
@@ -79,6 +91,7 @@ public final class NpcProfile {
     public static boolean allowsOpenDomain(String technique) {
         return "shrine".equals(technique) || "spirits".equals(technique);
     }
+    private static double finiteDamage(double x){return Double.isFinite(x)?Math.max(-1,Math.min(10000,x)):-1;}
     private static int clamp(int x,int min,int max) { return Math.max(min,Math.min(max,x)); }
     public CompoundTag toNbt() {
         CompoundTag root = new CompoundTag();
@@ -90,6 +103,10 @@ public final class NpcProfile {
         root.putInt("rctActiveSeconds",rctActiveSeconds);
         root.putInt("rctCooldownSeconds",rctCooldownSeconds);
         root.putBoolean("domainOpen",domainOpen);
+        root.putDouble("domainSureHitDamage",domainSureHitDamage);
+        root.putBoolean("techniquePassives",techniquePassives);
+        root.putBoolean("backDash",backDash);
+        root.putInt("backDashCooldownSeconds",backDashCooldownSeconds);
         root.putInt("domainHealthThreshold",domainHealthThreshold);
         root.putString("shrineModel",shrineModel.name());
         root.putBoolean("fatalRecovery",fatalRecovery);
@@ -104,6 +121,9 @@ public final class NpcProfile {
         CompoundTag charges=new CompoundTag();
         moveCharges.forEach(charges::putInt);
         root.put("moveCharges",charges);
+        CompoundTag damages=new CompoundTag();
+        moveDamage.forEach(damages::putDouble);
+        root.put("moveDamage",damages);
         CompoundTag crouches=new CompoundTag();
         moveCrouches.forEach((key,value)->crouches.putString(key,value.name()));
         root.put("moveCrouches",crouches);
@@ -133,6 +153,12 @@ public final class NpcProfile {
         p.rctCooldownSeconds=root.contains("rctCooldownSeconds")
                 ?clamp(root.getInt("rctCooldownSeconds"),0,3600):20;
         p.domainOpen=root.getBoolean("domainOpen");
+        p.domainSureHitDamage=root.contains("domainSureHitDamage",6)
+            ?finiteDamage(root.getDouble("domainSureHitDamage")):-1;
+        p.techniquePassives=!root.contains("techniquePassives")||root.getBoolean("techniquePassives");
+        p.backDash=root.getBoolean("backDash");
+        p.backDashCooldownSeconds=root.contains("backDashCooldownSeconds",3)
+            ?clamp(root.getInt("backDashCooldownSeconds"),0,3600):8;
         p.domainHealthThreshold=root.contains("domainHealthThreshold",3)
                 ?clamp(root.getInt("domainHealthThreshold"),1,100):100;
         try{p.shrineModel=ShrineModel.valueOf(root.getString("shrineModel"));}
@@ -153,6 +179,9 @@ public final class NpcProfile {
         CompoundTag charges=root.getCompound("moveCharges");
         for(String id:charges.getAllKeys())
             if(charges.contains(id,3))p.setCharge(id,charges.getInt(id));
+        CompoundTag damages=root.getCompound("moveDamage");
+        for(String id:damages.getAllKeys())
+            if(damages.contains(id,6))p.setDamage(id,damages.getDouble(id));
         CompoundTag crouches=root.getCompound("moveCrouches");
         for(String key:crouches.getAllKeys()){
             if(AbilityCatalog.move(p.technique,key).isEmpty())continue;

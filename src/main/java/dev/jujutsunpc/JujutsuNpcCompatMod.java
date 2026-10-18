@@ -40,6 +40,8 @@ public final class JujutsuNpcCompatMod {
         SERVER_CONFIG = b.build();
     }
     private static final DeferredRegister<Item> ITEMS = DeferredRegister.create(ForgeRegistries.ITEMS, MOD_ID);
+    public static final RegistryObject<Item> GREY_KASHIMO_HAIR=ITEMS.register(
+            "kashimo_hair_grey",dev.jujutsunpc.item.GreyKashimoHairItem::new);
     public static final RegistryObject<Item> CONFIG_TOOL = ITEMS.register("editor_tool",
             () -> new Item(new Item.Properties().stacksTo(1)));
 
@@ -57,7 +59,14 @@ public final class JujutsuNpcCompatMod {
         event.setCanceled(true);
     }
     @SubscribeEvent public void tick(net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent e) { NpcCombatEngine.tick(e); }
-    @SubscribeEvent public void damage(net.minecraftforge.event.entity.living.LivingDamageEvent e) { NpcCombatEngine.onDamage(e); dev.jujutsunpc.game.NpcMeleeBridge.onDamage(e); }
+    @SubscribeEvent public void hurt(net.minecraftforge.event.entity.living.LivingHurtEvent e) {
+        dev.jujutsunpc.game.NpcCombatTuning.onHurt(e);
+    }
+    @SubscribeEvent public void damage(net.minecraftforge.event.entity.living.LivingDamageEvent e) {
+        NpcCombatEngine.onDamage(e);
+        dev.jujutsunpc.game.NpcMeleeBridge.onDamage(e);
+        dev.jujutsunpc.game.NpcCombatTuning.afterHit(e);
+    }
     @SubscribeEvent public void spawn(net.minecraftforge.event.entity.living.MobSpawnEvent.FinalizeSpawn e) { WorldRestrictions.preventNaturalJjkMobs(e); }
     @SubscribeEvent public void commands(RegisterCommandsEvent e) { CompatCommands.register(e.getDispatcher()); }
 }
