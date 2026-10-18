@@ -73,13 +73,10 @@ public final class NpcCombatTuning {
         level.sendParticles(ParticleTypes.ELECTRIC_SPARK,target.getX(),
                 target.getY()+target.getBbHeight()/2,target.getZ(),
                 28,0.35,0.7,0.35,0.1);
-        runtime.putBoolean("kashimoPassiveDamage",true);
-        try{
-            if(npc instanceof Mob mob)
-                target.hurt(npc.damageSources().mobAttack(mob),Math.max(1,e.getAmount()));
-        }finally{
-            runtime.putBoolean("kashimoPassiveDamage",false);
-        }
+        // Apply on the SAME registered hit, without a second hurt() call.
+        // A second call during LivingDamageEvent can be rejected by vanilla
+        // hit-invulnerability and would sometimes never deal extra damage.
+        e.setAmount(e.getAmount()+Math.max(1f,e.getAmount()));
     }
     public static void backDash(ServerLevel level,LivingEntity npc,NpcProfile p,CompoundTag runtime) {
         if(!p.backDash || !(npc instanceof Mob mob)||mob.getTarget()==null
