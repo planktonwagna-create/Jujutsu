@@ -20,7 +20,9 @@ public final class NpcProfile {
     public Map<String,Integer> itemCooldowns = new LinkedHashMap<>();
     public Map<String,Mode> itemMoveModes = new LinkedHashMap<>();
     public EnumMap<Defence, Integer> defenceCooldowns = new EnumMap<>(Defence.class);
-    public boolean domainOpen = false; // Only meaningful for the Shrine technique in JJK v51.
+    public boolean domainOpen = false; // Shrine and Womb Profusion only in JJK v51.
+    /** Maximum health percentage at which an automatically cast domain may begin. 100 = anytime. */
+    public int domainHealthThreshold = 100;
     public ShrineModel shrineModel = ShrineModel.NORMAL;
     public enum ShrineModel { NORMAL, MUTATED; public ShrineModel next(){return this==NORMAL?MUTATED:NORMAL;} }
     public int rctActiveSeconds = 8;
@@ -75,7 +77,7 @@ public final class NpcProfile {
         defenceCooldowns.put(defence,clamp(seconds,0,3600));
     }
     public static boolean allowsOpenDomain(String technique) {
-        return "shrine".equals(technique);
+        return "shrine".equals(technique) || "spirits".equals(technique);
     }
     private static int clamp(int x,int min,int max) { return Math.max(min,Math.min(max,x)); }
     public CompoundTag toNbt() {
@@ -88,6 +90,7 @@ public final class NpcProfile {
         root.putInt("rctActiveSeconds",rctActiveSeconds);
         root.putInt("rctCooldownSeconds",rctCooldownSeconds);
         root.putBoolean("domainOpen",domainOpen);
+        root.putInt("domainHealthThreshold",domainHealthThreshold);
         root.putString("shrineModel",shrineModel.name());
         root.putBoolean("fatalRecovery",fatalRecovery);
         root.putInt("fatalCharges",fatalRecoveryCharges);
@@ -130,6 +133,8 @@ public final class NpcProfile {
         p.rctCooldownSeconds=root.contains("rctCooldownSeconds")
                 ?clamp(root.getInt("rctCooldownSeconds"),0,3600):20;
         p.domainOpen=root.getBoolean("domainOpen");
+        p.domainHealthThreshold=root.contains("domainHealthThreshold",3)
+                ?clamp(root.getInt("domainHealthThreshold"),1,100):100;
         try{p.shrineModel=ShrineModel.valueOf(root.getString("shrineModel"));}
         catch(IllegalArgumentException ignored){p.shrineModel=ShrineModel.NORMAL;}
         p.fatalRecovery=root.getBoolean("fatalRecovery");

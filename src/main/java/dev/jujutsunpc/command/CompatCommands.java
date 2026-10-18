@@ -48,7 +48,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.9 | techniques: expanded | held-key charge | crouch variants | item skills"
+                "Jujutsu NPC Compat v0.10 | animations | Womb Profusion barrier | domain health gate | right-click weapons"
             ),false);
             return 1;
         }));
@@ -114,7 +114,8 @@ public final class CompatCommands {
                 .append(" | idleHold=").append(profile.holdPositionWhenIdle)
                 .append(" | allowCombatDamage=").append(profile.allowCombatDamage)
                 .append(" | duel=").append(dev.jujutsunpc.game.NpcMeleeBridge.dueling(npc))
-                .append(" | shrineBarrier=").append(profile.domainOpen ? "open" : "closed")
+                .append(" | domainHealthThreshold=").append(profile.domainHealthThreshold).append("%")
+                .append(" | domainBarrier=").append(profile.domainOpen ? "open" : "closed")
                 .append(" | shrineAppearance=").append(profile.shrineModel.name())
                 .append(" | RCT active=").append(profile.rctActiveSeconds).append("s")
                 .append(" | RCT cooldown=").append(profile.rctCooldownSeconds).append("s")

@@ -207,7 +207,8 @@ public final class NpcEditorScreen extends Screen {
     }
     private String equipmentSignature(){
         LivingEntity npc=entity();
-        return npc==null?"":String.valueOf(npc.getMainHandItem().getItem());
+        return npc==null?"":String.valueOf(npc.getMainHandItem().getItem())+"|"
+                +String.valueOf(npc.getOffhandItem().getItem());
     }
     @Override public void tick(){
         super.tick();
@@ -249,7 +250,9 @@ public final class NpcEditorScreen extends Screen {
         }else if(page==6 && selectedBasic()!=null){
             graphics.drawString(font,"Cooldown seconds for "+selectedBasic().title(),x,152,0xAAAAAA);
         }else if(page==7 && selectedItem()!=null){
-            graphics.drawString(font,"Native item move cooldown seconds",x,153,0xAAAAAA);
+            graphics.drawString(font,"Right-click item ability cooldown (seconds)",x,153,0xAAAAAA);
+            graphics.drawCenteredString(font,"Native JujutsuCraft use effect - not repeated every tick",
+                    width/2,205,0xBBBBBB);
         }
         super.render(graphics,mouseX,mouseY,delta);
     }

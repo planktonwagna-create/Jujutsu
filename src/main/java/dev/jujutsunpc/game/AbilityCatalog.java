@@ -33,6 +33,49 @@ public final class AbilityCatalog {
             default -> "";
         };
     }
+
+    /**
+     * Choose a matching animation from the 116 ORIGINAL ver51 humanoid animation
+     * resources. This intentionally does not claim each MCreator skill has a
+     * one-to-one player animation: native v51 dispatches many via separate
+     * PlayAnimationEntity procedures. Categorized fallback poses are used when
+     * no specific animation is mapped.
+     */
+    public static String animationFor(Move move,boolean charging) {
+        if(charging && supportsCharge(move))return "charge1";
+        if(isDomain(move))return "domain_expansion1";
+        String known=originalAnimation(move.key());
+        if(!known.isEmpty())return known;
+        if(isBasic(move))return switch(move.key()){
+            case "barrage" -> "punch_gomu_gatling1";
+            case "knockback" -> "punch_overhead";
+            default -> "punch_right";
+        };
+        String proc=move.procedure().replace("Procedure","").toLowerCase(Locale.ROOT);
+        if(proc.contains("martialsolution")||proc.contains("kamutoke"))return "right_arm_up";
+        if(proc.contains("gavel")||proc.contains("sword")||proc.contains("katana")
+                ||proc.contains("weapon")||proc.contains("dragonbone")
+                ||proc.contains("nanami"))return "sword_overhead";
+        if(proc.contains("barrage")||proc.contains("consecutive")||proc.contains("continue")
+                ||proc.contains("combo"))return "combo1";
+        if(proc.contains("kick")||proc.contains("tackle"))return "kick_right";
+        if(proc.contains("punch")||proc.contains("fist")||proc.contains("attack"))return "punch_right";
+        if(proc.contains("boogie")||proc.contains("clap"))return "clap";
+        if(proc.contains("speed")||proc.contains("projection"))return "speed_attack1";
+        if(proc.contains("uzumaki")||proc.contains("sphere")||proc.contains("meteor")
+                ||proc.contains("garuda")||proc.contains("energywave"))return "both_arm_front";
+        if(proc.contains("summon")||proc.contains("divinedog")||proc.contains("nue")
+                ||proc.contains("toad")||proc.contains("shikigami"))return "both_arm_ground";
+        if(proc.contains("lightning")||proc.contains("thunder")||proc.contains("maximum")
+                ||proc.contains("jacobs"))return "both_arm_up";
+        if(proc.contains("red"))return "red";
+        if(proc.contains("ice")||proc.contains("blood")||proc.contains("laser")
+                ||proc.contains("flame")||proc.contains("slash")||proc.contains("dismantle")
+                ||proc.contains("cleave")||proc.contains("piercing")||proc.contains("blast")
+                ||proc.contains("projectile"))return "right_arm_front";
+        return "right_arm_front";
+    }
+
     public record Technique(String key, String title, List<Move> moves) {}
     private static Technique t(String key,String title,Move... moves) {
         return new Technique(key,title,List.of(moves));

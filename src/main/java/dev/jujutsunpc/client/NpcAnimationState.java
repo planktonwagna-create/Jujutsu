@@ -7,6 +7,7 @@ import com.google.gson.JsonParser;
 import dev.jujutsunpc.compat.NpcCompatibility;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
+import net.minecraft.client.model.PlayerModel;
 import net.minecraft.client.model.geom.ModelPart;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.LivingEntity;
@@ -78,6 +79,16 @@ public final class NpcAnimationState {
         applyBone(bones, "left_arm", model.leftArm, time);
         applyBone(bones, "right_leg", model.rightLeg, time);
         applyBone(bones, "left_leg", model.leftLeg, time);
+        // PlayerModel has separate overlay geometry. Without copying rotations
+        // its sleeves and jacket keep their idle poses and visually mask animations.
+        if(model instanceof PlayerModel<?> player){
+            player.hat.copyFrom(player.head);
+            player.jacket.copyFrom(player.body);
+            player.leftSleeve.copyFrom(player.leftArm);
+            player.rightSleeve.copyFrom(player.rightArm);
+            player.leftPants.copyFrom(player.leftLeg);
+            player.rightPants.copyFrom(player.rightLeg);
+        }
     }
 
     private static void applyBone(JsonObject bones, String name, ModelPart part, double time) {

@@ -1,6 +1,7 @@
 package dev.jujutsunpc.compat;
 
 import dev.jujutsunpc.game.AbilityCatalog;
+import dev.jujutsunpc.game.ItemMoveCatalog;
 import dev.jujutsunpc.config.NpcProfile;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Entity;
@@ -112,13 +113,17 @@ public final class JujutsuProcedureBridge {
             if (mob != null && oldTarget != explicitTarget) mob.setTarget(explicitTarget);
             Method method = findMethod(move.procedure());
             if (method == null) return false;
+            // Original item-click procedures that accept an ItemStack must see
+            // the held JJK item even when equipped in the NPC's offhand.
+            ItemStack held=ItemMoveCatalog.available(caster,move)
+                    ?ItemMoveCatalog.heldItem(caster):caster.getMainHandItem();
             Class<?>[] args=method.getParameterTypes();
             if(args.length==5){
                 method.invoke(null,level,caster.getX(),caster.getY(),caster.getZ(),caster);
             }else if(args.length==2){
                 method.invoke(null,level,caster);
             }else if(args.length==3 && args[2]==ItemStack.class){
-                method.invoke(null,level,caster,caster.getMainHandItem());
+                method.invoke(null,level,caster,held);
             }else if(args.length==6 && args[5]==ItemStack.class){
                 method.invoke(null,level,caster.getX(),caster.getY(),caster.getZ(),caster,caster.getMainHandItem());
             }else if(args.length==7 && args[4]==Direction.class){

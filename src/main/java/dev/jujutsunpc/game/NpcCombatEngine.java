@@ -222,6 +222,16 @@ public final class NpcCombatEngine {
         resetJjkCounters(npc);
         if(!original(level,npc,p,move,pos,target,true,crouching))return false;
         if(!manual)AutomaticCastLimiter.didBegin(level,now);
+        // JJK item-use procedures are invoked on right-click, not every tick.
+        // Re-running the original item procedure caused duplicate lightning/
+        // projectile activations. A single click starts its independent timer.
+        if(item){
+            state.putLong("ready_"+readyKey,now+CastPolicy.secondsToTicks(p.itemCooldown(readyKey)));
+            play(npc,move,false);
+            LOG.info("JJK NPC {} right-clicked {} | cooldown={}s",npc.getUUID(),
+                    readyKey,p.itemCooldown(readyKey));
+            return true;
+        }
         CompoundTag active=new CompoundTag();
         active.putString("move",move.key());
         active.putString("cooldownKey",readyKey);
