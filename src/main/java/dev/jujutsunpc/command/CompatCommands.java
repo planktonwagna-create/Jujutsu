@@ -6,6 +6,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.builder.RequiredArgumentBuilder;
 import dev.jujutsunpc.compat.NpcCompatibility;
+import dev.jujutsunpc.JujutsuNpcCompatMod;
 import dev.jujutsunpc.config.NpcProfile;
 import dev.jujutsunpc.config.NpcStorage;
 import dev.jujutsunpc.game.AbilityCatalog;
@@ -48,7 +49,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.13 | full-body native poses with position and timing"
+                "Jujutsu NPC Compat v0.14 | server-wide NPC/player JJK hit sound toggles"
             ),false);
             return 1;
         }));
@@ -65,7 +66,31 @@ public final class CompatCommands {
                         EntityArgument.getEntity(ctx,"first"), EntityArgument.getEntity(ctx,"second"))))));
         root.then(Commands.literal("duelstop").then(Commands.argument("npc",EntityArgument.entity())
                 .executes(ctx -> duelstop(ctx.getSource(),EntityArgument.getEntity(ctx,"npc")))));
+        root.then(Commands.literal("sounds")
+                .executes(ctx->showSounds(ctx.getSource()))
+                .then(Commands.literal("npc")
+                    .then(Commands.literal("on").executes(ctx->setSounds(ctx.getSource(),true,true)))
+                    .then(Commands.literal("off").executes(ctx->setSounds(ctx.getSource(),true,false))))
+                .then(Commands.literal("player")
+                    .then(Commands.literal("on").executes(ctx->setSounds(ctx.getSource(),false,true)))
+                    .then(Commands.literal("off").executes(ctx->setSounds(ctx.getSource(),false,false)))));
         dispatcher.register(root);
+    }
+    private static int showSounds(CommandSourceStack source){
+        String message="Server JujutsuCraft HIT sounds: NPC="
+            +(JujutsuNpcCompatMod.NPC_HIT_SOUNDS.get()?"ON":"OFF")
+            +", Player="+(JujutsuNpcCompatMod.PLAYER_HIT_SOUNDS.get()?"ON":"OFF");
+        source.sendSuccess(()->Component.literal(message),false);
+        return 1;
+    }
+    private static int setSounds(CommandSourceStack source,boolean npc,boolean enabled){
+        if(npc)JujutsuNpcCompatMod.NPC_HIT_SOUNDS.set(enabled);
+        else JujutsuNpcCompatMod.PLAYER_HIT_SOUNDS.set(enabled);
+        dev.jujutsunpc.network.CompatNetwork.syncHitSoundsToAll(source.getServer());
+        source.sendSuccess(()->Component.literal(
+            "Server-wide JJK "+(npc?"NPC":"player")+" hit sounds: "
+                +(enabled?"ON":"OFF")+" (applies to every player)"),true);
+        return 1;
     }
     private static int cast(CommandSourceStack source, Entity rawNpc, String move, Entity explicitTarget) {
         if (!(explicitTarget instanceof LivingEntity living) || !living.isAlive()) return 0;

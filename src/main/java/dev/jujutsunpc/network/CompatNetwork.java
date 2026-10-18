@@ -4,6 +4,7 @@ import dev.jujutsunpc.compat.NpcCompatibility;
 import dev.jujutsunpc.config.NpcProfile;
 import dev.jujutsunpc.config.NpcStorage;
 import dev.jujutsunpc.client.ClientEditorBridge;
+import dev.jujutsunpc.JujutsuNpcCompatMod;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.Entity;
@@ -27,6 +28,7 @@ public final class CompatNetwork {
     public record OpenEditor(int id, CompoundTag config) {}
     public record SaveEditor(int id, CompoundTag config) {}
     public record PlayNpcAnimation(int id, String animation) {}
+    public record HitSoundPolicy(boolean npc,boolean player) {}
 
     public static void init() {
         CHANNEL.messageBuilder(OpenEditor.class,0, NetworkDirection.PLAY_TO_CLIENT)
@@ -45,6 +47,14 @@ public final class CompatNetwork {
                         () -> () -> dev.jujutsunpc.client.NpcAnimationState.play(m.id(), m.animation()));
                 context.get().setPacketHandled(true);
             }).add();
+        CHANNEL.messageBuilder(HitSoundPolicy.class,3,NetworkDirection.PLAY_TO_CLIENT)
+            .encoder((m,b)->{b.writeBoolean(m.npc());b.writeBoolean(m.player());})
+            .decoder(b->new HitSoundPolicy(b.readBoolean(),b.readBoolean()))
+            .consumerMainThread((m,context)->{
+                DistExecutor.unsafeRunWhenOn(net.minecraftforge.api.distmarker.Dist.CLIENT,
+                    ()->()->dev.jujutsunpc.sound.ClientHitSoundState.sync(m.npc(),m.player()));
+                context.get().setPacketHandled(true);
+            }).add();
         CHANNEL.messageBuilder(SaveEditor.class,1,NetworkDirection.PLAY_TO_SERVER)
             .encoder((m,b) -> { b.writeVarInt(m.id()); b.writeNbt(m.config()); })
             .decoder(b -> new SaveEditor(b.readVarInt(),b.readNbt()))
@@ -60,6 +70,14 @@ public final class CompatNetwork {
                 }
                 context.get().setPacketHandled(true);
             }).add();
+    }
+    public static void syncHitSounds(ServerPlayer player){
+        CHANNEL.sendTo(new HitSoundPolicy(JujutsuNpcCompatMod.NPC_HIT_SOUNDS.get(),
+                JujutsuNpcCompatMod.PLAYER_HIT_SOUNDS.get()),
+                player.connection.connection,NetworkDirection.PLAY_TO_CLIENT);
+    }
+    public static void syncHitSoundsToAll(net.minecraft.server.MinecraftServer server){
+        for(ServerPlayer p:server.getPlayerList().getPlayers())syncHitSounds(p);
     }
     public static boolean canEdit(ServerPlayer player) {
         return player.isCreative() || player.hasPermissions(2);

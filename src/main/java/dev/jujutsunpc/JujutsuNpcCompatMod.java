@@ -31,6 +31,9 @@ public final class JujutsuNpcCompatMod {
     public static final ForgeConfigSpec.BooleanValue AUTO_LIMIT_ENABLED;
     public static final ForgeConfigSpec.IntValue AUTO_LIMIT_COUNT;
     public static final ForgeConfigSpec.IntValue AUTO_LIMIT_WINDOW;
+    /** World/server settings: effective for every connected player. */
+    public static final ForgeConfigSpec.BooleanValue NPC_HIT_SOUNDS;
+    public static final ForgeConfigSpec.BooleanValue PLAYER_HIT_SOUNDS;
     static {
         ForgeConfigSpec.Builder b = new ForgeConfigSpec.Builder();
         b.push("performance");
@@ -38,6 +41,14 @@ public final class JujutsuNpcCompatMod {
                 .define("limitAutomaticCasts", false);
         AUTO_LIMIT_COUNT = b.defineInRange("automaticCastsPerWindow", 5, 1, 100);
         AUTO_LIMIT_WINDOW = b.defineInRange("windowSeconds", 10, 1, 60);
+        b.pop();
+        b.push("sounds");
+        NPC_HIT_SOUNDS=b.comment(
+                "Play JujutsuCraft hit/reaction sounds when an Easy NPC or CustomNPCs mob is attacked. Applies to the entire server.")
+                .define("npcHitSounds",true);
+        PLAYER_HIT_SOUNDS=b.comment(
+                "Play JujutsuCraft hit/reaction sounds when any player is attacked. Applies to the entire server.")
+                .define("playerHitSounds",true);
         b.pop();
         SERVER_CONFIG = b.build();
     }
@@ -57,6 +68,7 @@ public final class JujutsuNpcCompatMod {
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, SERVER_CONFIG);
         CompatNetwork.init();
         MinecraftForge.EVENT_BUS.register(this);
+        MinecraftForge.EVENT_BUS.register(dev.jujutsunpc.sound.JjkHitSoundPolicy.class);
     }
     @SubscribeEvent public void interact(PlayerInteractEvent.EntityInteract event) {
         if (!(event.getEntity() instanceof ServerPlayer player) ||
@@ -72,6 +84,9 @@ public final class JujutsuNpcCompatMod {
     @SubscribeEvent public void damage(net.minecraftforge.event.entity.living.LivingDamageEvent e) {
         NpcCombatEngine.onDamage(e);
         dev.jujutsunpc.game.NpcMeleeBridge.onDamage(e);
+    }
+    @SubscribeEvent public void login(net.minecraftforge.event.entity.player.PlayerEvent.PlayerLoggedInEvent event){
+        if(event.getEntity() instanceof ServerPlayer player)CompatNetwork.syncHitSounds(player);
     }
     @SubscribeEvent public void spawn(net.minecraftforge.event.entity.living.MobSpawnEvent.FinalizeSpawn e) { WorldRestrictions.preventNaturalJjkMobs(e); }
     @SubscribeEvent public void commands(RegisterCommandsEvent e) { CompatCommands.register(e.getDispatcher()); }
