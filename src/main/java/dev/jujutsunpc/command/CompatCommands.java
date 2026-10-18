@@ -91,7 +91,8 @@ public final class CompatCommands {
             source.sendFailure(Component.literal("Move unavailable: check its mode, cooldown, current charge, or target."));
             return 0;
         }
-        source.sendSuccess(() -> Component.literal("Scheduled JJK " + move.title()
+        final AbilityCatalog.Move castMove=move;
+        source.sendSuccess(() -> Component.literal("Scheduled JJK " + castMove.title()
                 + " with " + npc.getName().getString()),true);
         return 1;
     }
