@@ -18,62 +18,55 @@ public final class AbilityCatalog {
         return new Move(key,title,procedure,cost,cooldown,min,max);
     }
     public static boolean isDomain(Move m) { return "domain".equals(m.key()) || m.key().startsWith("domain_"); }
-    public static String originalAnimation(String moveKey) {
-        return switch (moveKey) {
+    /**
+     * Only animate moves with verified, meaningful original JujutsuCraft
+     * humanoid motion tracks. v0.9-v0.14 applied static arm-up/front poses as
+     * a universal fallback; that made otherwise active NPCs look like statues.
+     * No animation is BETTER than an unrelated arm-raising animation.
+     */
+    public static String originalAnimation(String key) {
+        return switch(key){
             case "red" -> "red";
-            case "blue" -> "right_arm_front";
-            case "purple" -> "both_arm_front";
-            case "dismantle", "cleave" -> "punch_right";
-            case "piercing_blood" -> "right_arm_front";
-            case "supernova" -> "both_arm_front";
             case "boogie_woogie" -> "clap";
             case "thin_ice" -> "punch_right";
             case "domain" -> "domain_expansion1";
-            case "dog", "nue", "elephant", "toad" -> "both_arm_front";
             default -> "";
         };
     }
 
-    /**
-     * Choose a matching animation from the 116 ORIGINAL ver51 humanoid animation
-     * resources. This intentionally does not claim each MCreator skill has a
-     * one-to-one player animation: native v51 dispatches many via separate
-     * PlayAnimationEntity procedures. Categorized fallback poses are used when
-     * no specific animation is mapped.
-     */
     public static String animationFor(Move move,boolean charging) {
         if(charging && supportsCharge(move))return "charge1";
         if(isDomain(move))return "domain_expansion1";
-        String known=originalAnimation(move.key());
-        if(!known.isEmpty())return known;
         if(isBasic(move))return switch(move.key()){
             case "barrage" -> "punch_gomu_gatling1";
             case "knockback" -> "punch_overhead";
             default -> "punch_right";
         };
-        String proc=move.procedure().replace("Procedure","").toLowerCase(Locale.ROOT);
-        if(proc.contains("martialsolution")||proc.contains("kamutoke"))return "right_arm_up";
-        if(proc.contains("gavel")||proc.contains("sword")||proc.contains("katana")
-                ||proc.contains("weapon")||proc.contains("dragonbone")
-                ||proc.contains("nanami"))return "sword_overhead";
-        if(proc.contains("barrage")||proc.contains("consecutive")||proc.contains("continue")
-                ||proc.contains("combo"))return "combo1";
-        if(proc.contains("kick")||proc.contains("tackle"))return "kick_right";
-        if(proc.contains("punch")||proc.contains("fist")||proc.contains("attack"))return "punch_right";
-        if(proc.contains("boogie")||proc.contains("clap"))return "clap";
-        if(proc.contains("speed")||proc.contains("projection"))return "speed_attack1";
-        if(proc.contains("uzumaki")||proc.contains("sphere")||proc.contains("meteor")
-                ||proc.contains("garuda")||proc.contains("energywave"))return "both_arm_front";
-        if(proc.contains("summon")||proc.contains("divinedog")||proc.contains("nue")
-                ||proc.contains("toad")||proc.contains("shikigami"))return "both_arm_ground";
-        if(proc.contains("lightning")||proc.contains("thunder")||proc.contains("maximum")
-                ||proc.contains("jacobs"))return "both_arm_up";
-        if(proc.contains("red"))return "red";
-        if(proc.contains("ice")||proc.contains("blood")||proc.contains("laser")
-                ||proc.contains("flame")||proc.contains("slash")||proc.contains("dismantle")
-                ||proc.contains("cleave")||proc.contains("piercing")||proc.contains("blast")
-                ||proc.contains("projectile"))return "right_arm_front";
-        return "right_arm_front";
+        // Explicit native technique motion names — do not guess from words
+        // like "lightning", "blast", or "summon".
+        return switch(move.procedure()){
+            case "KashimoRotateKickProcedure" -> "kick_rotate1";
+            case "SkillKashimoKickProcedure" -> "kashimo_kick";
+            case "DaburaKickProcedure", "MiguelKickProcedure" -> "kick_right";
+            case "KashimoDomainProcedure" -> "domain_expansion1";
+            case "SkillSukunaCombo1Procedure", "SkillDaburaCombo1Procedure" -> "combo1";
+            case "SkillSukunaCombo2Procedure", "SkillDaburaCombo2Procedure" -> "combo2";
+            case "SkillSukunaCombo3Procedure" -> "combo3";
+            case "AttackContinueProcedure", "AttackContinueHigurumaProcedure",
+                 "Attack4ConsecutiveAttacksProcedure" -> "punch_gomu_gatling1";
+            case "AttackWeakProcedure", "AttackSpeedProcedure",
+                 "AttackStrongMahitoProcedure", "AttackStrongOkkotsuProcedure" -> "punch_right";
+            case "AttackStrongProcedure", "AttackOverheadProcedure",
+                 "AttackOverheadHigurumaProcedure" -> "punch_overhead";
+            case "WeaponNanamiRightClickedInAirProcedure",
+                 "WeaponNanamiRightClickedInAir2Procedure",
+                 "TechniqueIaiYudukiProcedure" -> "sword_overhead";
+            case "SkillBoogieWoogieProcedure" -> "clap";
+            case "TechniqueRedProcedure" -> "red";
+            // Shrine and generic spell procedures often do NOT have a
+            // corresponding full-body pose; avoid misleading arm raises.
+            default -> "";
+        };
     }
 
     public record Technique(String key, String title, List<Move> moves) {}

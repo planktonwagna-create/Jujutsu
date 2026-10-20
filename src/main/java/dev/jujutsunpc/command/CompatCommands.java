@@ -49,7 +49,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.14 | server-wide NPC/player JJK hit sound toggles"
+                "Jujutsu NPC Compat v0.15 | curated animations and native Kashimo thunder"
             ),false);
             return 1;
         }));

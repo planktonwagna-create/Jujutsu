@@ -19,6 +19,15 @@ public final class CastPolicySmokeTest {
         check(AbilityCatalog.move("shrine","barrage").isPresent(),"universal barrage");
         check(AbilityCatalog.supportsCharge(AbilityCatalog.move("limitless","blue").orElseThrow()),"native hold check for blue");
         check(AbilityCatalog.supportsCrouch(AbilityCatalog.move("shrine","dismantle").orElseThrow()),"native sneak check");
+        check(AbilityCatalog.animationFor(new AbilityCatalog.Move("misc","Misc",
+                "UnknownTechniqueProcedure",0,20,0,5),false).isEmpty(),
+                "unknown moves never force generic arm-up pose");
+        check(AbilityCatalog.animationFor(new AbilityCatalog.Move("kick","Kick",
+                "KashimoRotateKickProcedure",0,20,0,5),false).equals("kick_rotate1"),
+                "Kashimo kick uses original animation");
+        check(AbilityCatalog.animationFor(new AbilityCatalog.Move("lightning","Lightning",
+                "LightningStrikeProcedure",0,20,0,5),false).isEmpty(),
+                "Lightning Strike does not invent arm-raised animation");
         System.out.println("PASS: cooldown-only policy checks");
     }
 }

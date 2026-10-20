@@ -20,6 +20,13 @@ public abstract class PlayerModelPoseMixin {
     private void jjknpc$afterPlayerPose(LivingEntity entity,float limbSwing,float limbSwingAmount,
                                         float ageInTicks,float netHeadYaw,float headPitch,
                                         CallbackInfo info) {
-        NpcAnimationState.apply(entity,(PlayerModel<?>)(Object)this);
+        Object model=(Object)this;
+        // CustomNPCs extends PlayerModel and completes additional pose setup
+        // afterward; let its own final hook apply exactly once.
+        if(model.getClass().getName().startsWith("noppes.npcs.client.model."))return;
+        // EasyNPC's ModelManager applies another pass after PlayerModel.
+        // Its setupAnimationEnd mixin owns the final animation for that mob.
+        if(entity.getClass().getName().startsWith("de.markusbordihn.easynpc."))return;
+        NpcAnimationState.apply(entity,(PlayerModel<?>)model);
     }
 }

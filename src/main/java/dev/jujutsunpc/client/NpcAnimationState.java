@@ -93,22 +93,24 @@ public final class NpcAnimationState {
     private static double displaySeconds(Playback playback,Animation animation){
         if(isCharging(playback.animation()))return 125d;
         double motion=animation.lastKeyframeSeconds();
-        return motion<=0 ? 0.62d : Math.max(0.63d,Math.min(2.4d,motion*1.20d+0.25d));
+        // Native punch impact keyframes are ~0.08s apart. v0.13 stretched
+        // 0.2s of choreography to 0.6s, making each pose look held/stiff.
+        return motion<=0 ? 0.4d : Math.max(0.42d,Math.min(1.65d,motion*1.12d+0.18d));
     }
     private static double sampleTime(Playback playback,Animation animation,double elapsed){
         double end=animation.lastKeyframeSeconds();
         if(end<=0)return 0;
         if(isCharging(playback.animation()))return Math.min(end,elapsed);
-        double progress=Math.max(0,Math.min(1,elapsed/(displaySeconds(playback,animation)*0.79d)));
-        // Smooth step eases acceleration and avoids an abrupt transition.
-        double smooth=progress*progress*(3-2*progress);
-        return smooth*end;
+        // Advance across actual native keyframes at an almost-linear rate.
+        // Easing the entire clip made the impact occur far too late.
+        double progress=Math.max(0,Math.min(1,elapsed/(displaySeconds(playback,animation)*0.83d)));
+        return progress*end;
     }
     private static float weight(Playback playback,Animation animation,double elapsed){
-        float into=(float)Math.min(1,Math.max(0,elapsed/0.10));
+        float into=(float)Math.min(1,Math.max(0,elapsed/0.055d));
         if(isCharging(playback.animation()))return into;
         double remain=displaySeconds(playback,animation)-elapsed;
-        return into*(float)Math.min(1,Math.max(0,remain/0.23d));
+        return into*(float)Math.min(1,Math.max(0,remain/0.11d));
     }
     private static void resetLastPosition(ModelPart part){
         if(part==null)return;

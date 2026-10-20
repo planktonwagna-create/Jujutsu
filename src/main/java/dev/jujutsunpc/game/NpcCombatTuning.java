@@ -4,10 +4,12 @@ import dev.jujutsunpc.compat.NpcCompatibility;
 import dev.jujutsunpc.config.NpcProfile;
 import dev.jujutsunpc.config.NpcStorage;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.particles.ParticleTypes;
+import net.minecraft.core.particles.SimpleParticleType;
+import net.minecraft.resources.ResourceLocation;
+import net.minecraftforge.registries.ForgeRegistries;
+import net.minecraft.sounds.SoundEvent;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.server.level.ServerLevel;
-import net.minecraft.sounds.SoundEvents;
 import net.minecraft.sounds.SoundSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
@@ -59,13 +61,22 @@ public final class NpcCombatTuning {
                 || caster.distanceToSqr(target)>128d*128d)return false;
         float damage=(float)(profile.damage(move.key())>=0?profile.damage(move.key()):12d);
         if(!(caster instanceof Mob attacker))return false;
+        // v0.12 invented vanilla ELECTRIC_SPARK + floating END_ROD clouds.
+        // Those particles are NOT Kashimo's v51 lightning. Use the actual
+        // registered JujutsuCraft blue-thunder effect instead.
+        boolean hit=target.hurt(caster.damageSources().mobAttack(attacker),damage);
+        if(!hit)return true; // still targeted; vanilla hit immunity may block
         double x=target.getX(),y=target.getY()+target.getBbHeight()/2,z=target.getZ();
-        level.sendParticles(ParticleTypes.ELECTRIC_SPARK,x,y,z,65,.38,.7,.38,.11);
-        level.sendParticles(ParticleTypes.END_ROD,x,target.getY()+target.getBbHeight(),z,24,.15,.5,.15,.09);
-        level.playSound(null,x,target.getY(),z,SoundEvents.LIGHTNING_BOLT_IMPACT,SoundSource.HOSTILE,1.5f,.9f);
-        // Locked target is the only entity damaged. Standard armor, events,
-        // defenses and Minecraft hurt immunity continue to apply.
-        target.hurt(caster.damageSources().mobAttack(attacker),damage);
+        var original=ForgeRegistries.PARTICLE_TYPES.getValue(
+                new ResourceLocation("jujutsucraft","particle_thunder_blue"));
+        if(original instanceof SimpleParticleType thunder){
+            level.sendParticles(thunder,x,y,z,4,.15,.22,.15,.04);
+        }
+        SoundEvent sound=ForgeRegistries.SOUND_EVENTS.getValue(
+                new ResourceLocation("jujutsucraft","thunder_impact"));
+        if(sound!=null){
+            level.playSound(null,x,y,z,sound,SoundSource.NEUTRAL,1.0f,1.0f);
+        }
         return true;
     }
 
