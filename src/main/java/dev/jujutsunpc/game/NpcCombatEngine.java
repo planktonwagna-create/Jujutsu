@@ -33,6 +33,12 @@ public final class NpcCombatEngine {
         // The v0.6 melee fix must remain available even while a JJK move is charging.
         NpcMeleeBridge.tick(level,npc,state);
         NpcCombatTuning.backDash(level,npc,profile,state);
+        // An active Kashimo bolt is a travelling cast, so do not begin a
+        // second move until its locked-target visual reaches the opponent.
+        if(KashimoLightningTrail.active(state)){
+            KashimoLightningTrail.tick(level,npc,profile,state);
+            return;
+        }
         if(state.contains(ACTIVE,10)){
             advance(level,npc,profile,state,now);
             return;
@@ -224,7 +230,7 @@ public final class NpcCombatEngine {
         boolean item=ItemMoveCatalog.available(npc,move);
         if(!item&&AbilityCatalog.move(p.technique,move.key()).isEmpty())return false;
         CompoundTag state=NpcStorage.runtime(npc,p);
-        if(state.contains(ACTIVE,10))return false;
+        if(state.contains(ACTIVE,10)||KashimoLightningTrail.active(state))return false;
         long now=level.getGameTime();
         String readyKey=item?ItemMoveCatalog.key(npc,move):move.key();
         if(!CastPolicy.canCast(item?p.itemMode(readyKey):p.mode(move.key()),
@@ -239,9 +245,7 @@ public final class NpcCombatEngine {
             LivingEntity locked=(npc instanceof Mob mob && mob.getTarget()!=null
                     && mob.getTarget().isAlive())?mob.getTarget():target;
             if(locked==null || !locked.isAlive() || locked==npc)return false;
-            state.putString("currentMove",move.key());
-            state.putString("currentItemMoveKey","");
-            state.putLong("currentMoveUntil",now+2);
+            // The impact owns damage attribution, AFTER the visual travels.
             if(!NpcCombatTuning.lightningStrike(level,npc,locked,p,move))return false;
             state.putLong("ready_"+readyKey,now+CastPolicy.secondsToTicks(p.cooldown(move.key())));
             if(!manual)AutomaticCastLimiter.didBegin(level,now);

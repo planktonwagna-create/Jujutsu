@@ -50,34 +50,11 @@ public final class NpcCombatTuning {
         if(damage>=0)event.setAmount((float)damage);
     }
 
-    /**
-     * Kashimo Lightning Strike: instead of stacking passive marks, strike the
-     * current locked-on LivingEntity directly. The spell never sweeps other
-     * entities and does not depend on a previous melee hit.
-     */
+    /** Start the travelling JujutsuCraft-blue lightning toward one locked enemy. */
     public static boolean lightningStrike(ServerLevel level,LivingEntity caster,LivingEntity target,
                                          NpcProfile profile,AbilityCatalog.Move move) {
-        if(target==null || !target.isAlive() || target==caster || target.level()!=level
-                || caster.distanceToSqr(target)>128d*128d)return false;
-        float damage=(float)(profile.damage(move.key())>=0?profile.damage(move.key()):12d);
-        if(!(caster instanceof Mob attacker))return false;
-        // v0.12 invented vanilla ELECTRIC_SPARK + floating END_ROD clouds.
-        // Those particles are NOT Kashimo's v51 lightning. Use the actual
-        // registered JujutsuCraft blue-thunder effect instead.
-        boolean hit=target.hurt(caster.damageSources().mobAttack(attacker),damage);
-        if(!hit)return true; // still targeted; vanilla hit immunity may block
-        double x=target.getX(),y=target.getY()+target.getBbHeight()/2,z=target.getZ();
-        var original=ForgeRegistries.PARTICLE_TYPES.getValue(
-                new ResourceLocation("jujutsucraft","particle_thunder_blue"));
-        if(original instanceof SimpleParticleType thunder){
-            level.sendParticles(thunder,x,y,z,4,.15,.22,.15,.04);
-        }
-        SoundEvent sound=ForgeRegistries.SOUND_EVENTS.getValue(
-                new ResourceLocation("jujutsucraft","thunder_impact"));
-        if(sound!=null){
-            level.playSound(null,x,y,z,sound,SoundSource.NEUTRAL,1.0f,1.0f);
-        }
-        return true;
+        return KashimoLightningTrail.begin(level,caster,target,profile,move,
+                NpcStorage.runtime(caster,profile));
     }
 
     public static void backDash(ServerLevel level,LivingEntity npc,NpcProfile profile,CompoundTag runtime){
