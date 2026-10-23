@@ -8,6 +8,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.resources.ResourceKey;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.damagesource.DamageType;
+import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -135,7 +136,10 @@ public final class KashimoLightningTrail {
             runtime.putLong("currentMoveUntil",level.getGameTime()+2);
             double custom=profile.damage(moveKey);
             float damage=(float)(custom>=0?custom:12d);
-            target.hurt(caster.damageSources().source(NATIVE_CURSE_DAMAGE,attacker),damage);
+            DamageSource curse=new DamageSource(level.registryAccess()
+                    .registryOrThrow(Registries.DAMAGE_TYPE)
+                    .getHolderOrThrow(NATIVE_CURSE_DAMAGE),attacker);
+            target.hurt(curse,damage);
         }
     }
 
