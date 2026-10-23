@@ -49,7 +49,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.17 | optional JCraft Brawler/Anubis/dash animations"
+                "Jujutsu NPC Compat v0.18 | attempted melee animation and JJK curse lightning"
             ),false);
             return 1;
         }));

@@ -32,6 +32,9 @@ public final class NpcCombatEngine {
         tickRct(npc,profile,state,now);
         // The v0.6 melee fix must remain available even while a JJK move is charging.
         NpcMeleeBridge.tick(level,npc,state);
+        // An ordinary melee windup must complete before any technique can
+        // steal the pose or resolve damage during the six-tick animation lead.
+        if(NpcMeleeBridge.windingUp(state))return;
         NpcCombatTuning.backDash(level,npc,profile,state);
         // An active Kashimo bolt is a travelling cast, so do not begin a
         // second move until its locked-target visual reaches the opponent.

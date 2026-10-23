@@ -5,6 +5,9 @@ import dev.jujutsunpc.config.NpcStorage;
 import net.minecraft.core.particles.SimpleParticleType;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.resources.ResourceKey;
+import net.minecraft.core.registries.Registries;
+import net.minecraft.world.damagesource.DamageType;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
@@ -28,6 +31,9 @@ import net.minecraftforge.registries.ForgeRegistries;
 public final class KashimoLightningTrail {
     private static final String KEY="kashimoTravelingLightning";
     private static final int MAX_TICKS=18;
+    private static final ResourceKey<DamageType> NATIVE_CURSE_DAMAGE =
+            ResourceKey.create(Registries.DAMAGE_TYPE,
+                    new ResourceLocation("jujutsucraft","damage_curse"));
     private static final double MAX_RANGE_SQR=128d*128d;
     private static final ResourceLocation MINI=new ResourceLocation("jujutsucraft","particle_thunder_blue_mini");
     private static final ResourceLocation BLUE=new ResourceLocation("jujutsucraft","particle_thunder_blue");
@@ -75,19 +81,14 @@ public final class KashimoLightningTrail {
         Entity entity=arc.hasUUID("victim")?level.getEntity(arc.getUUID("victim")):null;
         if(!(entity instanceof LivingEntity target) || !target.isAlive()
                 || !caster.isAlive() || target==caster || target.level()!=level
-                || caster.distanceToSqr(target)>MAX_RANGE_SQR){
+                ){
             runtime.remove(KEY);
             return;
         }
 
         SimpleParticleType blue=originalParticle(BLUE);
         SimpleParticleType mini=originalParticle(MINI);
-        if(blue==null && mini==null){
-            // Native particle registration unavailable: do not fabricate a
-            // different-looking visual and pretend it is JJK's original bolt.
-            runtime.remove(KEY);
-            return;
-        }
+        // Even if particles cannot be loaded, the locked-on hit still resolves.
 
         int flight=Math.max(1,arc.getInt("flightTicks"));
         long age=level.getGameTime()-arc.getLong("began");
@@ -101,36 +102,30 @@ public final class KashimoLightningTrail {
         Vec3 delta=destination.subtract(origin);
         if(delta.lengthSqr()<1.0e-6){runtime.remove(KEY);return;}
 
-        Vec3 transverse=delta.cross(new Vec3(0,1,0));
-        if(transverse.lengthSqr()<1.0e-6)transverse=delta.cross(new Vec3(1,0,0));
-        transverse=transverse.normalize();
-
-        // Emit a contiguous short visible segment on EACH tick, plus a few
-        // native particles behind its leading tip for the electrical trail.
-        double length=delta.length()*(endProgress-startProgress);
-        int samples=Mth.clamp((int)Math.ceil(length/0.23),4,18);
+        Vec3 sideways=delta.cross(new Vec3(0,1,0));
+        if(sideways.lengthSqr()<0.000001)sideways=delta.cross(new Vec3(1,0,0));
+        sideways=sideways.normalize();
+        Vec3 up=sideways.cross(delta.normalize()).normalize();
+        // Less dense native particles; angular offsets avoid a straight beam.
+        int samples=Mth.clamp((int)Math.ceil(delta.length()*(endProgress-startProgress)/0.68),2,10);
         for(int i=0;i<=samples;i++){
             double t=Mth.lerp((double)i/samples,startProgress,endProgress);
-            Vec3 position=point(origin,delta,transverse,t,caster.getId());
-            if(mini!=null)level.sendParticles(mini,position.x,position.y,position.z,1,0.015,0.015,0.015,0);
-            if(blue!=null && i%5==0)
-                level.sendParticles(blue,position.x,position.y,position.z,1,0.01,0.01,0.01,0);
+            Vec3 pos=point(origin,delta,sideways,up,t,caster.getId());
+            if(mini!=null)level.sendParticles(mini,pos.x,pos.y,pos.z,1,0,0,0,0);
+            if(blue!=null&&i%4==0)
+                level.sendParticles(blue,pos.x,pos.y,pos.z,1,0,0,0,0);
         }
-        // Faint native blue spark particles give the bolt a connected tail.
-        if(mini!=null && age>0){
-            for(int i=1;i<=4;i++){
-                double back=Math.max(0,endProgress-i*0.023);
-                Vec3 tail=point(origin,delta,transverse,back,caster.getId());
-                level.sendParticles(mini,tail.x,tail.y,tail.z,1,0.01,0.01,0.01,0);
-            }
+        if(mini!=null&&age>0){
+            Vec3 tail=point(origin,delta,sideways,up,Math.max(0,endProgress-0.045),caster.getId());
+            level.sendParticles(mini,tail.x,tail.y,tail.z,1,0,0,0,0);
         }
 
         if(endProgress<1)return;
         runtime.remove(KEY); // Prevent any duplicate impact on later ticks.
         if(blue!=null)level.sendParticles(blue,destination.x,destination.y,destination.z,
-                9,Math.min(0.25,target.getBbWidth()/3),Math.min(0.30,target.getBbHeight()/3),0.2,0.01);
+                3,Math.min(0.2,target.getBbWidth()/3),Math.min(0.23,target.getBbHeight()/3),0.15,0.005);
         if(mini!=null)level.sendParticles(mini,destination.x,destination.y,destination.z,
-                16,0.25,0.35,0.25,0.02);
+                6,0.16,0.2,0.16,0.01);
         sound(level,IMPACT_SOUND,destination,1f);
         // Damage ONLY the originally locked target, at the visual impact.
         if(caster instanceof Mob attacker){
@@ -140,15 +135,26 @@ public final class KashimoLightningTrail {
             runtime.putLong("currentMoveUntil",level.getGameTime()+2);
             double custom=profile.damage(moveKey);
             float damage=(float)(custom>=0?custom:12d);
-            target.hurt(caster.damageSources().mobAttack(attacker),damage);
+            target.hurt(caster.damageSources().source(NATIVE_CURSE_DAMAGE,attacker),damage);
         }
     }
 
-    private static Vec3 point(Vec3 origin,Vec3 delta,Vec3 perpendicular,double t,int seed){
+    /** Sharp, irregular corners on two axes; anchored at both endpoints. */
+    private static Vec3 point(Vec3 origin,Vec3 delta,Vec3 sideways,Vec3 up,double t,int seed){
+        double v=t*12;
+        int node=Math.min(11,(int)Math.floor(v));
+        double u=v-node;
         double envelope=Math.sin(Math.PI*t);
-        double jagged=(Math.sin(t*101.0+seed*3.7)*0.12+
-                       Math.sin(t*197.0+seed*1.9)*0.075)*envelope;
-        return origin.add(delta.scale(t)).add(perpendicular.scale(jagged));
+        double width=Math.min(0.75,Math.max(0.16,delta.length()*0.085));
+        double h=Mth.lerp(u,jitter(node,seed,17),jitter(node+1,seed,17));
+        double k=Mth.lerp(u,jitter(node,seed,59),jitter(node+1,seed,59));
+        return origin.add(delta.scale(t))
+                .add(sideways.scale(h*width*envelope))
+                .add(up.scale(k*width*0.8*envelope));
+    }
+    private static double jitter(int node,int seed,int salt){
+        double value=Math.sin(node*84.163+seed*29.47+salt*127.1)*43758.5453123;
+        return (value-Math.floor(value))*2-1;
     }
     private static SimpleParticleType originalParticle(ResourceLocation id){
         return ForgeRegistries.PARTICLE_TYPES.getValue(id) instanceof SimpleParticleType particle

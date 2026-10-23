@@ -31,6 +31,7 @@ public final class JujutsuNpcCompatMod {
     public static final ForgeConfigSpec.BooleanValue AUTO_LIMIT_ENABLED;
     public static final ForgeConfigSpec.IntValue AUTO_LIMIT_COUNT;
     public static final ForgeConfigSpec.IntValue AUTO_LIMIT_WINDOW;
+    public static final ForgeConfigSpec.IntValue MELEE_BUFFER_TICKS;
     /** World/server settings: effective for every connected player. */
     public static final ForgeConfigSpec.BooleanValue NPC_HIT_SOUNDS;
     public static final ForgeConfigSpec.BooleanValue PLAYER_HIT_SOUNDS;
@@ -41,6 +42,11 @@ public final class JujutsuNpcCompatMod {
                 .define("limitAutomaticCasts", false);
         AUTO_LIMIT_COUNT = b.defineInRange("automaticCastsPerWindow", 5, 1, 100);
         AUTO_LIMIT_WINDOW = b.defineInRange("windowSeconds", 10, 1, 60);
+        b.pop();
+        b.push("combat");
+        MELEE_BUFFER_TICKS=b.comment(
+                "Minimum spacing between ordinary NPC melee attacks, in ticks (20=1 second, 30=1.5 seconds, 40=2 seconds). Also staggers NPC-versus-NPC combat turns.")
+                .defineInRange("meleeAttackBufferTicks",30,20,40);
         b.pop();
         b.push("sounds");
         NPC_HIT_SOUNDS=b.comment(
@@ -80,6 +86,10 @@ public final class JujutsuNpcCompatMod {
     @SubscribeEvent public void tick(net.minecraftforge.event.entity.living.LivingEvent.LivingTickEvent e) { NpcCombatEngine.tick(e); }
     @SubscribeEvent public void hurt(net.minecraftforge.event.entity.living.LivingHurtEvent e) {
         dev.jujutsunpc.game.NpcCombatTuning.onHurt(e);
+    }
+    @SubscribeEvent(priority=net.minecraftforge.eventbus.api.EventPriority.HIGHEST)
+    public void attack(net.minecraftforge.event.entity.living.LivingAttackEvent e){
+        dev.jujutsunpc.game.NpcMeleeBridge.onAttack(e);
     }
     @SubscribeEvent public void damage(net.minecraftforge.event.entity.living.LivingDamageEvent e) {
         NpcCombatEngine.onDamage(e);
