@@ -9,6 +9,8 @@ import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.ai.attributes.Attributes;
+import net.minecraft.world.item.SwordItem;
+import net.minecraftforge.registries.ForgeRegistries;
 import net.minecraftforge.event.entity.living.LivingDamageEvent;
 
 import java.lang.reflect.Field;
@@ -76,21 +78,44 @@ public final class NpcMeleeBridge {
         if (event.getAmount() <= 0 || !(event.getEntity().level() instanceof ServerLevel level)) return;
         LivingEntity victim = event.getEntity();
         Entity attacker = event.getSource().getEntity();
-        if (!(attacker instanceof LivingEntity living) || !NpcCompatibility.isCompatible(living)
-                || !NpcCompatibility.isCompatible(victim)) return;
-        CompoundTag data = victim.getPersistentData();
-        data.putLong(LAST_NPC_ATTACK, level.getGameTime());
-        data.putUUID(LAST_NPC_ATTACKER, living.getUUID());
+        if (!(attacker instanceof LivingEntity living) || !NpcCompatibility.isCompatible(living))return;
+        // Only use NPC victims for the v0.6 combat hit registration; we may
+        // still animate a successful NPC melee hit against a PLAYER.
+        if(NpcCompatibility.isCompatible(victim)){
+            CompoundTag data=victim.getPersistentData();
+            data.putLong(LAST_NPC_ATTACK,level.getGameTime());
+            data.putUUID(LAST_NPC_ATTACKER,living.getUUID());
+        }
         // Play a visible humanoid attack pose for successful ordinary NPC
         // melee hits, without overwriting an active JJK technique animation.
         if(NpcStorage.configured(living)){
             CompoundTag state=NpcStorage.runtime(living,NpcStorage.profile(living));
             long now=level.getGameTime();
             if(!state.contains("activeJjkMove",10) && now>=state.getLong("nextMeleeAnimation")){
-                dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(living,"punch_right");
-                state.putLong("nextMeleeAnimation",now+10);
+                // Alternate two verified JCraft full-body attacks for ordinary
+                // melee hits; the resource loader falls back to JJK if absent.
+                int combo=state.getInt("ordinaryMeleeCombo")+1;
+                state.putInt("ordinaryMeleeCombo",combo);
+                String pose;
+                if(holdsSword(living)){
+                    pose=combo%3==0?"jc_an_2hit":combo%2==0?"jc_an_swp":"jc_an_slsh";
+                }else{
+                    pose=combo%3==0?"jc_br_upct":"jc_br_gut";
+                }
+                dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(living,pose);
+                state.putLong("nextMeleeAnimation",now+15);
             }
         }
+    }
+
+    private static boolean holdsSword(LivingEntity entity){
+        var item=entity.getMainHandItem().getItem();
+        if(item instanceof SwordItem)return true;
+        var id=ForgeRegistries.ITEMS.getKey(item);
+        if(id==null)return false;
+        String path=id.getPath();
+        return path.contains("sword")||path.contains("katana")
+                ||path.contains("blade")||path.equals("weapon_nanami");
     }
 
     public static void tick(ServerLevel level, LivingEntity source, CompoundTag state) {
@@ -119,7 +144,15 @@ public final class NpcMeleeBridge {
         double reach = Math.max(2.6, (source.getBbWidth() + target.getBbWidth()) * 0.5 + 1.8);
         if (state.hasUUID(DUEL) && source.distanceToSqr(target) > reach * reach
                 && now % 12 == 0) {
-            attacker.getNavigation().moveTo(target, 1.15);
+            attacker.getNavigation().moveTo(target,1.15);
+            // Only a brief forward chase in an active duel uses the dash pose,
+            // with its own rate limit. This never changes physics or AI speed.
+            double distance=source.distanceTo(target);
+            if(distance>reach+0.5 && distance<9.0
+                    && now>=state.getLong("nextChaseAnimation")){
+                dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(source,"jc_dash");
+                state.putLong("nextChaseAnimation",now+20);
+            }
         }
         if (source.distanceToSqr(target) > reach * reach || !attacker.hasLineOfSight(target)) {
             state.remove(MELEE_STARTED);

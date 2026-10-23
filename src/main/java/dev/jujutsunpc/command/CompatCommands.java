@@ -49,7 +49,7 @@ public final class CompatCommands {
         root.then(cast);
         root.then(Commands.literal("version").executes(ctx -> {
             ctx.getSource().sendSuccess(() -> Component.literal(
-                "Jujutsu NPC Compat v0.16 | Kashimo blue lightning travels to locked target"
+                "Jujutsu NPC Compat v0.17 | optional JCraft Brawler/Anubis/dash animations"
             ),false);
             return 1;
         }));

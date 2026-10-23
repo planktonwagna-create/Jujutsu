@@ -23,11 +23,19 @@ public final class CastPolicySmokeTest {
                 "UnknownTechniqueProcedure",0,20,0,5),false).isEmpty(),
                 "unknown moves never force generic arm-up pose");
         check(AbilityCatalog.animationFor(new AbilityCatalog.Move("kick","Kick",
-                "KashimoRotateKickProcedure",0,20,0,5),false).equals("kick_rotate1"),
-                "Kashimo kick uses original animation");
+                "KashimoRotateKickProcedure",0,20,0,5),false).equals("jc_br_kck"),
+                "Kashimo kick uses selected JCraft full-body animation");
         check(AbilityCatalog.animationFor(new AbilityCatalog.Move("lightning","Lightning",
                 "LightningStrikeProcedure",0,20,0,5),false).isEmpty(),
                 "Lightning Strike does not invent arm-raised animation");
+        check(AbilityCatalog.animationFor(AbilityCatalog.move("limitless","attack").orElseThrow(),false)
+                .equals("jc_br_gut"),"basic melee uses Brawler gut punch");
+        check(AbilityCatalog.animationFor(AbilityCatalog.move("limitless","barrage").orElseThrow(),false)
+                .equals("jc_br_3hit"),"barrage uses JCraft three-hit sequence");
+        check(JcraftAnimationRegistry.find("jc_an_usa").animation().equals("an.usa"),
+                "Anubis sword animation is mapped");
+        check(JcraftAnimationRegistry.find("jc_bdash").animation().equals("bdash"),
+                "JCraft backdash animation is mapped");
         System.out.println("PASS: cooldown-only policy checks");
     }
 }

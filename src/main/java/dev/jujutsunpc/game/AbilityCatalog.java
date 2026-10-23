@@ -34,37 +34,41 @@ public final class AbilityCatalog {
         };
     }
 
+    /**
+     * JCraft supplies full-body melee, weapon and dodge animations; cursed
+     * techniques and Domains retain their original JujutsuCraft poses.
+     * All jc_ IDs resolve through the optional installed JCraft resource pack.
+     */
     public static String animationFor(Move move,boolean charging) {
         if(charging && supportsCharge(move))return "charge1";
         if(isDomain(move))return "domain_expansion1";
         if(isBasic(move))return switch(move.key()){
-            case "barrage" -> "punch_gomu_gatling1";
-            case "knockback" -> "punch_overhead";
-            default -> "punch_right";
+            case "barrage" -> "jc_br_3hit";
+            case "knockback" -> "jc_br_upct";
+            default -> "jc_br_gut";
         };
-        // Explicit native technique motion names — do not guess from words
-        // like "lightning", "blast", or "summon".
+        // Explicit melee/weapon choices only: unknown cursed techniques MUST
+        // NOT fall back to generic arm-raised animations.
         return switch(move.procedure()){
-            case "KashimoRotateKickProcedure" -> "kick_rotate1";
-            case "SkillKashimoKickProcedure" -> "kashimo_kick";
-            case "DaburaKickProcedure", "MiguelKickProcedure" -> "kick_right";
+            case "KashimoRotateKickProcedure" -> "jc_br_kck";
+            case "SkillKashimoKickProcedure" -> "jc_br_lkk";
+            case "DaburaKickProcedure", "MiguelKickProcedure" -> "jc_br_low";
             case "KashimoDomainProcedure" -> "domain_expansion1";
-            case "SkillSukunaCombo1Procedure", "SkillDaburaCombo1Procedure" -> "combo1";
-            case "SkillSukunaCombo2Procedure", "SkillDaburaCombo2Procedure" -> "combo2";
-            case "SkillSukunaCombo3Procedure" -> "combo3";
+            case "SkillSukunaCombo1Procedure", "SkillDaburaCombo1Procedure" -> "jc_br_3hit";
+            case "SkillSukunaCombo2Procedure", "SkillDaburaCombo2Procedure" -> "jc_vm_5hit";
+            case "SkillSukunaCombo3Procedure" -> "jc_br_3hit";
             case "AttackContinueProcedure", "AttackContinueHigurumaProcedure",
-                 "Attack4ConsecutiveAttacksProcedure" -> "punch_gomu_gatling1";
+                 "Attack4ConsecutiveAttacksProcedure" -> "jc_vm_5hit";
             case "AttackWeakProcedure", "AttackSpeedProcedure",
-                 "AttackStrongMahitoProcedure", "AttackStrongOkkotsuProcedure" -> "punch_right";
+                 "AttackStrongMahitoProcedure", "AttackStrongOkkotsuProcedure" -> "jc_br_gut";
             case "AttackStrongProcedure", "AttackOverheadProcedure",
-                 "AttackOverheadHigurumaProcedure" -> "punch_overhead";
+                 "AttackOverheadHigurumaProcedure" -> "jc_br_upct";
             case "WeaponNanamiRightClickedInAirProcedure",
-                 "WeaponNanamiRightClickedInAir2Procedure",
-                 "TechniqueIaiYudukiProcedure" -> "sword_overhead";
+                 "WeaponNanamiRightClickedInAir2Procedure" -> "jc_an_slsh";
+            case "TechniqueIaiYudukiProcedure" -> "jc_an_usa";
+            case "WeaponNanamiRightClickedInAir3Procedure" -> "jc_an_2hit";
             case "SkillBoogieWoogieProcedure" -> "clap";
             case "TechniqueRedProcedure" -> "red";
-            // Shrine and generic spell procedures often do NOT have a
-            // corresponding full-body pose; avoid misleading arm raises.
             default -> "";
         };
     }
