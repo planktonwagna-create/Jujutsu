@@ -31,7 +31,7 @@ public final class NpcEditorScreen extends Screen {
     private String equipmentState="";
 
     public NpcEditorScreen(int target,NpcProfile profile){
-        super(Component.literal("Jujutsu NPC Editor v0.18"));
+        super(Component.literal("Jujutsu NPC Editor v0.19"));
         this.target=target;this.profile=profile;
     }
     private static int bounded(int x,int min,int max){return Math.max(min,Math.min(max,x));}

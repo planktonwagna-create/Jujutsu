@@ -23,19 +23,18 @@ public final class CastPolicySmokeTest {
                 "UnknownTechniqueProcedure",0,20,0,5),false).isEmpty(),
                 "unknown moves never force generic arm-up pose");
         check(AbilityCatalog.animationFor(new AbilityCatalog.Move("kick","Kick",
-                "KashimoRotateKickProcedure",0,20,0,5),false).equals("jc_br_kck"),
-                "Kashimo kick uses selected JCraft full-body animation");
+                "KashimoRotateKickProcedure",0,20,0,5),false).equals("kashimo_kick"),
+                "Kashimo kick uses original JJK animation");
         check(AbilityCatalog.animationFor(new AbilityCatalog.Move("lightning","Lightning",
                 "LightningStrikeProcedure",0,20,0,5),false).isEmpty(),
                 "Lightning Strike does not invent arm-raised animation");
         check(AbilityCatalog.animationFor(AbilityCatalog.move("limitless","attack").orElseThrow(),false)
-                .equals("jc_br_gut"),"basic melee uses Brawler gut punch");
+                .equals("punch_right"),"basic melee uses native JJK punch");
         check(AbilityCatalog.animationFor(AbilityCatalog.move("limitless","barrage").orElseThrow(),false)
-                .equals("jc_br_3hit"),"barrage uses JCraft three-hit sequence");
-        check(JcraftAnimationRegistry.find("jc_an_usa").animation().equals("an.usa"),
-                "Anubis sword animation is mapped");
-        check(JcraftAnimationRegistry.find("jc_bdash").animation().equals("bdash"),
-                "JCraft backdash animation is mapped");
+                .equals("combo1"),"barrage uses native JJK combo");
+        check(AbilityCatalog.animationFor(new AbilityCatalog.Move("blade","Blade",
+                "TechniqueIaiYudukiProcedure",0,20,0,5),false).equals("speed_attack_sword"),
+                "quickdraw uses native JJK sword animation");
         System.out.println("PASS: cooldown-only policy checks");
     }
 }

@@ -39,34 +39,40 @@ public final class AbilityCatalog {
      * techniques and Domains retain their original JujutsuCraft poses.
      * All jc_ IDs resolve through the optional installed JCraft resource pack.
      */
+    /**
+     * v0.19 comparison: only original JujutsuCraft v51 animation tracks.
+     * No JCraft asset dispatch for melee or mobility. Prefer clips with
+     * actual keyframed motion; some JJK clips contain only static vectors.
+     * The v0.18 server-side melee pacing and six-tick windup are unchanged.
+     */
     public static String animationFor(Move move,boolean charging) {
         if(charging && supportsCharge(move))return "charge1";
         if(isDomain(move))return "domain_expansion1";
         if(isBasic(move))return switch(move.key()){
-            case "barrage" -> "jc_br_3hit";
-            case "knockback" -> "jc_br_upct";
-            default -> "jc_br_gut";
+            case "barrage" -> "combo1";
+            case "knockback" -> "punch_both";
+            default -> "punch_right";
         };
-        // Explicit melee/weapon choices only: unknown cursed techniques MUST
-        // NOT fall back to generic arm-raised animations.
+        // Only verified JJK clips, and only for physically appropriate moves.
         return switch(move.procedure()){
-            case "KashimoRotateKickProcedure" -> "jc_br_kck";
-            case "SkillKashimoKickProcedure" -> "jc_br_lkk";
-            case "DaburaKickProcedure", "MiguelKickProcedure" -> "jc_br_low";
+            case "KashimoRotateKickProcedure" -> "kashimo_kick";
+            case "SkillKashimoKickProcedure" -> "kashimo_kick";
+            case "DaburaKickProcedure", "MiguelKickProcedure" -> "kick_right";
             case "KashimoDomainProcedure" -> "domain_expansion1";
-            case "SkillSukunaCombo1Procedure", "SkillDaburaCombo1Procedure" -> "jc_br_3hit";
-            case "SkillSukunaCombo2Procedure", "SkillDaburaCombo2Procedure" -> "jc_vm_5hit";
-            case "SkillSukunaCombo3Procedure" -> "jc_br_3hit";
+            case "SkillSukunaCombo1Procedure", "SkillDaburaCombo1Procedure" -> "combo1";
+            case "SkillSukunaCombo2Procedure", "SkillDaburaCombo2Procedure" -> "combo2";
+            case "SkillSukunaCombo3Procedure" -> "combo3";
             case "AttackContinueProcedure", "AttackContinueHigurumaProcedure",
-                 "Attack4ConsecutiveAttacksProcedure" -> "jc_vm_5hit";
-            case "AttackWeakProcedure", "AttackSpeedProcedure",
-                 "AttackStrongMahitoProcedure", "AttackStrongOkkotsuProcedure" -> "jc_br_gut";
+                 "Attack4ConsecutiveAttacksProcedure" -> "combo1";
+            case "AttackWeakProcedure" -> "punch_right";
+            case "AttackSpeedProcedure" -> "speed_attack_punch";
+            case "AttackStrongMahitoProcedure", "AttackStrongOkkotsuProcedure" -> "punch_both";
             case "AttackStrongProcedure", "AttackOverheadProcedure",
-                 "AttackOverheadHigurumaProcedure" -> "jc_br_upct";
+                 "AttackOverheadHigurumaProcedure" -> "punch_both";
             case "WeaponNanamiRightClickedInAirProcedure",
-                 "WeaponNanamiRightClickedInAir2Procedure" -> "jc_an_slsh";
-            case "TechniqueIaiYudukiProcedure" -> "jc_an_usa";
-            case "WeaponNanamiRightClickedInAir3Procedure" -> "jc_an_2hit";
+                 "WeaponNanamiRightClickedInAir2Procedure" -> "sword_to_right";
+            case "TechniqueIaiYudukiProcedure" -> "speed_attack_sword";
+            case "WeaponNanamiRightClickedInAir3Procedure" -> "sword_to_left";
             case "SkillBoogieWoogieProcedure" -> "clap";
             case "TechniqueRedProcedure" -> "red";
             default -> "";

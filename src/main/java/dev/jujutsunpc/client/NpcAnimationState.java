@@ -5,7 +5,6 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import dev.jujutsunpc.compat.NpcCompatibility;
-import dev.jujutsunpc.game.JcraftAnimationRegistry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.HumanoidModel;
 import net.minecraft.client.model.PlayerModel;
@@ -29,7 +28,7 @@ import java.util.WeakHashMap;
 public final class NpcAnimationState {
     private static final Logger LOG = LogUtils.getLogger();
     private record Playback(String animation, long startedAtMs) {}
-    private record Animation(double lengthSeconds,double lastKeyframeSeconds,JsonObject bones,boolean jcraft) {}
+    private record Animation(double lengthSeconds,double lastKeyframeSeconds,JsonObject bones) {}
     private record PartOffset(float baseX,float baseY,float baseZ,
                               float changedX,float changedY,float changedZ) {}
     /** Avoid accumulating translations if an NPC renderer doesn't reset pivots each frame. */
@@ -43,51 +42,27 @@ public final class NpcAnimationState {
         ACTIVE.put(entityId, new Playback(name, System.currentTimeMillis()));
     }
 
-    /**
-     * Read JCraft directly from the installed mod's resource pack. This file
-     * does not ship or copy any JCraft animation assets. Fall back to original
-     * JujutsuCraft if JCraft isn't installed on this client.
-     */
     private static Animation load(String name) {
-        Animation cached=CACHE.get(name);
-        if(cached!=null)return cached;
-        JcraftAnimationRegistry.Clip external=JcraftAnimationRegistry.find(name);
-        Animation result;
-        if(external!=null){
-            result=readAnimation(new ResourceLocation("jcraft",external.resourcePath()),
-                    external.animation(),true);
-            if(result==null && !external.originalFallback().isEmpty())
-                result=readAnimation(new ResourceLocation("jujutsucraft",
-                        "player_animation/"+external.originalFallback()+".json"),
-                        external.originalFallback(),false);
-        }else{
-            result=readAnimation(new ResourceLocation("jujutsucraft",
-                    "player_animation/"+name+".json"),name,false);
-        }
-        if(result!=null)CACHE.put(name,result);
-        return result;
-    }
-
-    private static Animation readAnimation(ResourceLocation path,String clipName,boolean jcraft){
+        Animation cached = CACHE.get(name);
+        if (cached != null) return cached;
+        ResourceLocation id = new ResourceLocation("jujutsucraft", "player_animation/" + name + ".json");
         try {
-            var res=Minecraft.getInstance().getResourceManager().getResource(path);
-            if(res.isEmpty())return null;
-            try(var reader=new InputStreamReader(res.get().open(),StandardCharsets.UTF_8)){
-                JsonObject root=JsonParser.parseReader(reader).getAsJsonObject();
-                JsonObject animations=root.getAsJsonObject("animations");
-                if(animations==null || animations.size()==0)return null;
-                if(jcraft && !animations.has(clipName))return null;
-                JsonObject anim=animations.has(clipName)
-                        ? animations.getAsJsonObject(clipName)
+            var resource = Minecraft.getInstance().getResourceManager().getResource(id);
+            if (resource.isEmpty()) return null;
+            try (var reader = new InputStreamReader(resource.get().open(), StandardCharsets.UTF_8)) {
+                JsonObject animations = JsonParser.parseReader(reader).getAsJsonObject().getAsJsonObject("animations");
+                if (animations == null || animations.size() == 0) return null;
+                JsonObject anim = animations.has(name) ? animations.getAsJsonObject(name)
                         : animations.entrySet().iterator().next().getValue().getAsJsonObject();
                 JsonObject bones=anim.getAsJsonObject("bones");
-                if(bones==null)return null;
-                double length=anim.has("animation_length")
-                        ?anim.get("animation_length").getAsDouble():0.7;
-                return new Animation(length,findFinalKeyframe(bones),bones,jcraft);
+                Animation parsed = new Animation(anim.has("animation_length")
+                        ?anim.get("animation_length").getAsDouble():0.7,
+                        findFinalKeyframe(bones),bones);
+                CACHE.put(name, parsed);
+                return parsed;
             }
-        }catch(Exception error){
-            LOG.debug("Could not read original {} animation {}",jcraft?"JCraft":"JujutsuCraft",path,error);
+        } catch (Exception e) {
+            LOG.debug("Can't read original JujutsuCraft humanoid animation {}", id, e);
             return null;
         }
     }
@@ -116,7 +91,6 @@ public final class NpcAnimationState {
      * at 0.125s. A clip's real motion is its keyframe timeline, not that claim.
      */
     private static double displaySeconds(Playback playback,Animation animation){
-        if(animation.jcraft())return Math.max(0.25d,Math.min(4d,animation.lengthSeconds()+0.08d));
         if(isCharging(playback.animation()))return 125d;
         double motion=animation.lastKeyframeSeconds();
         // Native punch impact keyframes are ~0.08s apart. v0.13 stretched
@@ -124,7 +98,6 @@ public final class NpcAnimationState {
         return motion<=0 ? 0.4d : Math.max(0.42d,Math.min(1.65d,motion*1.12d+0.18d));
     }
     private static double sampleTime(Playback playback,Animation animation,double elapsed){
-        if(animation.jcraft())return Math.max(0,Math.min(elapsed,animation.lengthSeconds()));
         double end=animation.lastKeyframeSeconds();
         if(end<=0)return 0;
         if(isCharging(playback.animation()))return Math.min(end,elapsed);
@@ -134,11 +107,6 @@ public final class NpcAnimationState {
         return progress*end;
     }
     private static float weight(Playback playback,Animation animation,double elapsed){
-        if(animation.jcraft()){
-            float entering=(float)Math.min(1,Math.max(0,elapsed/0.075d));
-            float leaving=(float)Math.min(1,Math.max(0,(displaySeconds(playback,animation)-elapsed)/0.14d));
-            return entering*leaving;
-        }
         float into=(float)Math.min(1,Math.max(0,elapsed/0.055d));
         if(isCharging(playback.animation()))return into;
         double remain=displaySeconds(playback,animation)-elapsed;
@@ -172,7 +140,7 @@ public final class NpcAnimationState {
         }
         float alpha=weight(playing,animation,elapsed);
         double time=sampleTime(playing,animation,elapsed);
-        applyComposite(animation,limbs,time,alpha);
+        applyComposite(animation.bones(),limbs,time,alpha);
         if(model instanceof PlayerModel<?> player){
             player.hat.copyFrom(player.head);
             player.jacket.copyFrom(player.body);
@@ -195,7 +163,7 @@ public final class NpcAnimationState {
         if(elapsed<0||elapsed>displaySeconds(playing,animation)){
             ACTIVE.remove(npc.getId());return false;
         }
-        applyComposite(animation,limbs,sampleTime(playing,animation,elapsed),
+        applyComposite(animation.bones(),limbs,sampleTime(playing,animation,elapsed),
                 weight(playing,animation,elapsed));
         return true;
     }
@@ -205,18 +173,14 @@ public final class NpcAnimationState {
      * transform. Minecraft's HumanoidModel has one body part, so COMBINE
      * them instead of applying 'body' last and erasing the torso action.
      */
-    private static void applyComposite(Animation animation,ModelPart[] limbs,double t,float alpha){
-        JsonObject bones=animation.bones();
+    private static void applyComposite(JsonObject bones,ModelPart[] limbs,double t,float alpha){
         if(bones==null||alpha<=0)return;
-        boolean jc=animation.jcraft();
         applyBone(bones,"head",null,limbs[0],t,alpha);
-        // JCraft's player skeleton calls its body bone 'torso'; native JJK
-        // keeps the root 'body' plus a distinct 'torso' motion.
-        applyBone(bones,jc?"torso":"body",jc?null:"torso",limbs[1],t,alpha);
-        applyBone(bones,jc?"rightArm":"right_arm",null,limbs[2],t,alpha);
-        applyBone(bones,jc?"leftArm":"left_arm",null,limbs[3],t,alpha);
-        applyBone(bones,jc?"rightLeg":"right_leg",null,limbs[4],t,alpha);
-        applyBone(bones,jc?"leftLeg":"left_leg",null,limbs[5],t,alpha);
+        applyBone(bones,"body","torso",limbs[1],t,alpha);
+        applyBone(bones,"right_arm",null,limbs[2],t,alpha);
+        applyBone(bones,"left_arm",null,limbs[3],t,alpha);
+        applyBone(bones,"right_leg",null,limbs[4],t,alpha);
+        applyBone(bones,"left_leg",null,limbs[5],t,alpha);
     }
 
     private static float[] vector(JsonObject bones,String name,String property,double time){
@@ -265,75 +229,30 @@ public final class NpcAnimationState {
         LAST_POSITIONS.put(part,new PartOffset(bx,by,bz,part.x,part.y,part.z));
     }
 
-    /** Bedrock/JCraft keyframe channels: vectors plus easing on the arrival frame. */
-    private static float[] sampleRotation(JsonElement value,double time) {
-        if(value.isJsonArray())return readVector(value.getAsJsonArray());
-        if(!value.isJsonObject())return null;
-        JsonObject data=value.getAsJsonObject();
-        if(data.has("vector"))return sampleRotation(data.get("vector"),time);
-
-        double prev=Double.NEGATIVE_INFINITY,next=Double.POSITIVE_INFINITY;
-        float[] before=null,after=null;
-        String arrivingEasing="linear";
-        for(var key:data.entrySet()){
-            try{
-                double t=Double.parseDouble(key.getKey());
-                float[] vector=sampleRotation(key.getValue(),time);
-                if(vector==null)continue;
-                if(t<=time && t>prev){
-                    prev=t;
-                    before=vector;
-                }
-                if(t>=time && t<next){
-                    next=t;
-                    after=vector;
-                    arrivingEasing=(key.getValue().isJsonObject()
-                            &&key.getValue().getAsJsonObject().has("easing"))
-                            ?key.getValue().getAsJsonObject().get("easing").getAsString():"linear";
-                }
-            }catch(NumberFormatException ignored){
-                // Non-time interpolation metadata isn't a keyframe.
-            }
+    /** Handles vector, raw [x,y,z] and timestamp-keyed vector objects. */
+    private static float[] sampleRotation(JsonElement value, double time) {
+        if (value.isJsonArray()) return readVector(value.getAsJsonArray());
+        if (!value.isJsonObject()) return null;
+        JsonObject data = value.getAsJsonObject();
+        if (data.has("vector")) return sampleRotation(data.get("vector"), time);
+        double prev = Double.NEGATIVE_INFINITY, next = Double.POSITIVE_INFINITY;
+        float[] before = null, after = null;
+        for (var entry : data.entrySet()) {
+            try {
+                double t = Double.parseDouble(entry.getKey());
+                float[] vec = sampleRotation(entry.getValue(), time);
+                if (vec == null) continue;
+                if (t <= time && t > prev) { prev = t; before = vec; }
+                if (t >= time && t < next) { next = t; after = vec; }
+            } catch (NumberFormatException ignored) { /* non-time interpolation metadata */ }
         }
-        if(before==null)return after;
-        if(after==null||next==prev)return before;
-        float alpha=ease((float)((time-prev)/(next-prev)),arrivingEasing);
-        return new float[]{
-            before[0]+(after[0]-before[0])*alpha,
-            before[1]+(after[1]-before[1])*alpha,
-            before[2]+(after[2]-before[2])*alpha
-        };
+        if (before == null) return after;
+        if (after == null || next == prev) return before;
+        float alpha = (float)((time-prev)/(next-prev));
+        return new float[] {before[0]+(after[0]-before[0])*alpha,
+                before[1]+(after[1]-before[1])*alpha,
+                before[2]+(after[2]-before[2])*alpha};
     }
-
-    /** Easing names used in JCraft 0.18.2's real player-animation files. */
-    private static float ease(float v,String name){
-        double x=Math.max(0,Math.min(1,v));
-        double c1=1.70158,c3=c1+1,c2=c1*1.525;
-        return (float)switch(name){
-            case "easeInSine" -> 1-Math.cos(x*Math.PI/2);
-            case "easeOutSine" -> Math.sin(x*Math.PI/2);
-            case "easeInOutSine" -> -(Math.cos(Math.PI*x)-1)/2;
-            case "easeOutCubic" -> 1-Math.pow(1-x,3);
-            case "easeOutBack" -> 1+c3*Math.pow(x-1,3)+c1*Math.pow(x-1,2);
-            case "easeInOutBack" -> x<0.5
-                    ?Math.pow(2*x,2)*((c2+1)*2*x-c2)/2
-                    :(Math.pow(2*x-2,2)*((c2+1)*(2*x-2)+c2)+2)/2;
-            case "easeInOutCirc" -> x<0.5
-                    ?(1-Math.sqrt(1-Math.pow(2*x,2)))/2
-                    :(Math.sqrt(1-Math.pow(-2*x+2,2))+1)/2;
-            case "easeOutBounce" -> bounceOut(x);
-            default -> x;
-        };
-    }
-    private static double bounceOut(double t){
-        double n=7.5625,d=2.75;
-        if(t<1/d)return n*t*t;
-        if(t<2/d){t-=1.5/d;return n*t*t+0.75;}
-        if(t<2.5/d){t-=2.25/d;return n*t*t+0.9375;}
-        t-=2.625/d;
-        return n*t*t+0.984375;
-    }
-
     private static float[] readVector(JsonArray array) {
         if (array.size() < 3) return null;
         try { return new float[] {array.get(0).getAsFloat(),array.get(1).getAsFloat(),array.get(2).getAsFloat()}; }

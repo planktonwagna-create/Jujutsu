@@ -3,7 +3,7 @@ plugins {
     id 'net.minecraftforge.gradle' version '[6.0,6.2)'
 }
 
-version = '0.18.0-melee-buffer-surehit-test'
+version = '0.19.0-native-jjk-melee-buffer-test'
 group = 'dev.jujutsunpc'
 base { archivesName = 'jujutsu-npc-compat' }
 

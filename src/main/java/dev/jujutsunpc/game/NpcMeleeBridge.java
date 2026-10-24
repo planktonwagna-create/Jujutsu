@@ -125,9 +125,12 @@ public final class NpcMeleeBridge {
     private static void playAttack(Mob attacker,CompoundTag state){
         int combo=state.getInt("ordinaryMeleeCombo")+1;
         state.putInt("ordinaryMeleeCombo",combo);
+        // Original JujutsuCraft v51 player-animation assets. Punch_left and
+        // punch_right both contain actual full-body keyframes, unlike some
+        // static Gatling/Overhead clips. Keep v0.18 impact + cooldown intact.
         String pose=holdsSword(attacker)
-                ?(combo%3==0?"jc_an_2hit":combo%2==0?"jc_an_swp":"jc_an_slsh")
-                :(combo%3==0?"jc_br_upct":"jc_br_gut");
+                ?(combo%3==0?"sword_rotate":combo%2==0?"sword_to_left":"sword_to_right")
+                :(combo%3==0?"punch_both":combo%2==0?"punch_left":"punch_right");
         dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(attacker,pose);
     }
 
@@ -216,7 +219,7 @@ public final class NpcMeleeBridge {
             attacker.getNavigation().moveTo(target,1.15);
             double distance=source.distanceTo(target);
             if(distance>reach+0.5 && distance<9 && now>=state.getLong("nextChaseAnimation")){
-                dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(source,"jc_dash");
+                dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(source,"step_front");
                 state.putLong("nextChaseAnimation",now+20);
             }
         }

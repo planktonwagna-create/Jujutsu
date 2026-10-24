@@ -3,7 +3,7 @@ loaderVersion="[47,)"
 license="All Rights Reserved (addon source); upstream mods retain their own licenses"
 [[mods]]
 modId="jujutsunpccompat"
-version="0.18.0-melee-buffer-surehit-test"
+version="0.19.0-native-jjk-melee-buffer-test"
 displayName="JujutsuCraft NPC Compatibility (Development)"
 authors="Independent compatibility project"
 description='''Development build. Connects JujutsuCraft, Easy NPC and CustomNPCs. Not feature-complete.'''
@@ -38,10 +38,3 @@ versionRange="[0,)"
 ordering="AFTER"
 side="BOTH"
 
-# Optional runtime animation asset provider. All animations remain in JCraft.
-[[dependencies.jujutsunpccompat]]
-modId="jcraft"
-mandatory=false
-versionRange="[0.18.2,)"
-ordering="AFTER"
-side="BOTH"

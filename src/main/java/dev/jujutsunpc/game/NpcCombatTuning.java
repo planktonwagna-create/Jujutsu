@@ -71,7 +71,7 @@ public final class NpcCombatTuning {
         if(!level.hasChunkAt(BlockPos.containing(destination)))return;
         npc.push(dir.normalize().x*.9,.12,dir.normalize().z*.9);
         runtime.putLong("backDashReady",now+CastPolicy.secondsToTicks(profile.backDashCooldownSeconds));
-        dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,"jc_bdash");
+        dev.jujutsunpc.network.CompatNetwork.broadcastAnimation(npc,"backstep");
     }
     private NpcCombatTuning(){}
 }
